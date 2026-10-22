@@ -244,7 +244,7 @@
   }
 
   var emblem, pill, word, ballMesh, shadow;
-  var player, body, legs, pony, jerseyMat, shortsMat, pShadow, armL, armR, handL, handR, jerseyCv, jerseyTex, bodyOff = 0, liveNow = false;
+  var player, body, legs, pony, jerseyMat, shortsMat, bandMat, trimMat, pShadow, armL, armR, handL, handR, jerseyCv, jerseyTex, bodyOff = 0, liveNow = false;
   var aimDots, boardG, hoopG, poleG, netLines, floorMat, lineMat, lineMeshes = [];
   var NA = 16, NL = 6, netPos, netVerts = [];
   var circleOff = new THREE.Vector3(), sBall = 1;
@@ -285,10 +285,12 @@
   /* ---------- jugador ---------- */
   function drawJersey() {
     if (!jerseyCv) return;
-    var c = jerseyCv.getContext('2d'), W = jerseyCv.width;
+    var c = jerseyCv.getContext('2d'), W = jerseyCv.width, black = who.kit === 'n';
     c.clearRect(0, 0, W, W);
+    c.fillStyle = black ? '#1eabd1' : '#ffffff';                      // rayas bajo el número
+    [-78, -26, 26, 78].forEach(function (dx) { c.fillRect(W / 2 + dx - 11, 340, 22, W - 340); });
     c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
-    c.fillStyle = '#ffffff'; c.strokeStyle = who.kit === 'n' ? '#1eabd1' : '#14505e';
+    c.fillStyle = '#ffffff'; c.strokeStyle = black ? '#1eabd1' : '#14505e';
     var name = (who.name || '').toUpperCase(), num = who.num || '';
     function put(txt, size, maxW, y) {
       c.font = '800 ' + size + 'px Montserrat, Arial, sans-serif';
@@ -296,29 +298,37 @@
       c.lineWidth = Math.max(5, size * 0.06);
       c.strokeText(txt, W / 2, y); c.fillText(txt, W / 2, y);
     }
-    if (name) put(name, 104, 460, num ? 100 : W / 2);
-    if (num) put(num, 330, 390, name ? 330 : W / 2);
+    if (name && num) { put(name, 92, 460, 70); put(num, 250, 340, 215); }
+    else if (name) put(name, 104, 460, 200);
+    else if (num) put(num, 280, 340, 200);
     jerseyTex.needsUpdate = true;
   }
   function buildPlayer() {
     player = new THREE.Group(); body = new THREE.Group(); legs = new THREE.Group();
-    var skin = mat(0xe0b08a, 0.6), cy = mat(CYAN, 0.5), nv = mat(NAVY, 0.5), jc = mat(JERSEY, 0.5), sm = mat(NAVY, 0.5);
-    jerseyMat = jc; shortsMat = sm;
+    var skin = mat(0xe0b08a, 0.6), cy = mat(CYAN, 0.5), nv = mat(NAVY, 0.5), jc = mat(JERSEY, 0.5), sm = mat(JERSEY, 0.5), hairM = mat(0x74492a, 0.8), bandM = mat(0xffffff, 0.5), trimM = mat(NAVY, 0.5);
+    jerseyMat = jc; shortsMat = sm; bandMat = bandM; trimMat = trimM;
     function part(geo, m, x, y, z) { var o = new THREE.Mesh(geo, m); o.position.set(x, y, z); return o; }
     [-0.2, 0.2].forEach(function (x) {
       legs.add(part(new THREE.CylinderGeometry(0.15, 0.13, 0.9, 14), skin, x, 0.45, 0));
       var shoe = part(new THREE.SphereGeometry(1, 16, 12), cy, x, 0.11, -0.06); shoe.scale.set(0.19, 0.12, 0.3); player.add(shoe);
     });
     var shorts = part(new THREE.CylinderGeometry(0.42, 0.47, 0.5, 24), sm, 0, 1.05, 0); shorts.scale.z = 0.65; body.add(shorts);
+    [0.86, 0.94].forEach(function (yy) {
+      var r = 0.47 - (yy - 0.8) / 0.5 * 0.05 + 0.006;
+      var band = part(new THREE.CylinderGeometry(r, r, 0.03, 24, 1, true), bandM, 0, yy, 0); band.scale.z = 0.65; body.add(band);
+    });
+    var collar = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.035, 8, 28), trimM);
+    collar.rotation.x = Math.PI / 2; collar.scale.y = 0.62; collar.position.set(0, 2.14, 0); body.add(collar);
+    var hem = part(new THREE.CylinderGeometry(0.447, 0.447, 0.04, 24, 1, true), trimM, 0, 1.275, 0); hem.scale.z = 0.62; body.add(hem);
     var torso = part(new THREE.CylinderGeometry(0.5, 0.44, 0.9, 24), jc, 0, 1.7, 0); torso.scale.z = 0.62; body.add(torso);
     body.add(part(new THREE.SphereGeometry(0.42, 24, 18), skin, 0, 2.58, 0));
-    body.add(part(new THREE.SphereGeometry(0.445, 24, 14, 0, Math.PI * 2, 0, 1.95), nv, 0, 2.6, 0));
+    body.add(part(new THREE.SphereGeometry(0.445, 24, 14, 0, Math.PI * 2, 0, 1.95), hairM, 0, 2.6, 0));
     [-1, 1].forEach(function (sd) { body.add(part(new THREE.SphereGeometry(0.17, 14, 10), jc, sd * 0.52, 2.02, 0)); });
     pony = new THREE.Group(); pony.position.set(0, 2.84, 0.4);
     var tail = new THREE.CylinderGeometry(0.14, 0.05, 0.58, 14); tail.translate(0, -0.33, 0);
-    pony.add(part(new THREE.SphereGeometry(0.15, 14, 10), nv, 0, 0, -0.02));
-    pony.add(new THREE.Mesh(tail, nv));
-    pony.add(part(new THREE.SphereGeometry(0.06, 10, 8), nv, 0, -0.62, 0));
+    pony.add(part(new THREE.SphereGeometry(0.15, 14, 10), hairM, 0, 0, -0.02));
+    pony.add(new THREE.Mesh(tail, hairM));
+    pony.add(part(new THREE.SphereGeometry(0.06, 10, 8), hairM, 0, -0.62, 0));
     var tie = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.048, 10, 20), cy); tie.rotation.x = Math.PI / 2; tie.position.set(0, -0.07, 0); pony.add(tie);
     pony.visible = false; body.add(pony);
     jerseyCv = document.createElement('canvas'); jerseyCv.width = jerseyCv.height = 512;
@@ -594,7 +604,10 @@
   var bKitA = document.getElementById('bKitA'), bKitN = document.getElementById('bKitN');
   function applyKit() {
     var black = who.kit === 'n';
-    if (jerseyMat) { jerseyMat.color.setHex(black ? 0x1d2025 : JERSEY); shortsMat.color.setHex(black ? 0x15181c : NAVY); drawJersey(); }
+    if (jerseyMat) {
+      jerseyMat.color.setHex(black ? 0x1d2025 : JERSEY); shortsMat.color.setHex(black ? 0x0d0f12 : 0x4a9aab);
+      bandMat.color.setHex(black ? CYAN : 0xffffff); trimMat.color.setHex(black ? CYAN : NAVY); drawJersey();
+    }
   }
   function setKit(v) {
     who.kit = v === 'n' ? 'n' : 'a';
