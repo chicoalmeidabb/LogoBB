@@ -99,6 +99,8 @@
   }
   .toast small { display: block; font-size: .38em; letter-spacing: .08em; color: var(--fg); text-transform: uppercase; text-align: center; text-shadow: none; }
   .player { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .seg { display: inline-flex; gap: 6px; }
+  .seg button { padding: 8px 13px; font-size: .8rem; }
   .player input {
     font: 600 16px var(--font-ui); color: var(--fg); background: var(--panel);
     border: 1.5px solid var(--line); border-radius: 999px; padding: 9px 14px; min-width: 0; box-sizing: border-box;
@@ -154,6 +156,14 @@
     <div class="loading" id="loading">Cargando logo…</div>
   </div>
   <div class="player" id="player" hidden>
+    <div class="seg" role="group" aria-label="Jugador o jugadora">
+      <button id="bBoy" type="button" aria-pressed="true">Jugador</button>
+      <button id="bGirl" type="button" aria-pressed="false">Jugadora</button>
+    </div>
+    <div class="seg" role="group" aria-label="Equipación">
+      <button id="bKitA" type="button" aria-pressed="true">Azul</button>
+      <button id="bKitN" type="button" aria-pressed="false">Negra</button>
+    </div>
     <input id="iNum" type="text" inputmode="numeric" maxlength="2" placeholder="Dorsal" autocomplete="off" aria-label="Tu dorsal">
     <input id="iName" type="text" maxlength="14" placeholder="Tu nombre" autocomplete="off" aria-label="Tu nombre">
   </div>
@@ -234,7 +244,7 @@
   }
 
   var emblem, pill, word, ballMesh, shadow;
-  var player, body, legs, pShadow, armL, armR, handL, handR, jerseyCv, jerseyTex, bodyOff = 0, liveNow = false;
+  var player, body, legs, pony, jerseyMat, shortsMat, pShadow, armL, armR, handL, handR, jerseyCv, jerseyTex, bodyOff = 0, liveNow = false;
   var aimDots, boardG, hoopG, poleG, netLines, floorMat, lineMat, lineMeshes = [];
   var NA = 16, NL = 6, netPos, netVerts = [];
   var circleOff = new THREE.Vector3(), sBall = 1;
@@ -278,7 +288,7 @@
     var c = jerseyCv.getContext('2d'), W = jerseyCv.width;
     c.clearRect(0, 0, W, W);
     c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
-    c.fillStyle = '#ffffff'; c.strokeStyle = '#14505e';
+    c.fillStyle = '#ffffff'; c.strokeStyle = who.kit === 'n' ? '#1eabd1' : '#14505e';
     var name = (who.name || '').toUpperCase(), num = who.num || '';
     function put(txt, size, maxW, y) {
       c.font = '800 ' + size + 'px Montserrat, Arial, sans-serif';
@@ -292,22 +302,30 @@
   }
   function buildPlayer() {
     player = new THREE.Group(); body = new THREE.Group(); legs = new THREE.Group();
-    var skin = mat(0xe0b08a, 0.6), cy = mat(CYAN, 0.5), nv = mat(NAVY, 0.5), jc = mat(JERSEY, 0.5);
+    var skin = mat(0xe0b08a, 0.6), cy = mat(CYAN, 0.5), nv = mat(NAVY, 0.5), jc = mat(JERSEY, 0.5), sm = mat(NAVY, 0.5);
+    jerseyMat = jc; shortsMat = sm;
     function part(geo, m, x, y, z) { var o = new THREE.Mesh(geo, m); o.position.set(x, y, z); return o; }
     [-0.2, 0.2].forEach(function (x) {
       legs.add(part(new THREE.CylinderGeometry(0.15, 0.13, 0.9, 14), skin, x, 0.45, 0));
       var shoe = part(new THREE.SphereGeometry(1, 16, 12), cy, x, 0.11, -0.06); shoe.scale.set(0.19, 0.12, 0.3); player.add(shoe);
     });
-    var shorts = part(new THREE.CylinderGeometry(0.42, 0.47, 0.5, 24), nv, 0, 1.05, 0); shorts.scale.z = 0.65; body.add(shorts);
+    var shorts = part(new THREE.CylinderGeometry(0.42, 0.47, 0.5, 24), sm, 0, 1.05, 0); shorts.scale.z = 0.65; body.add(shorts);
     var torso = part(new THREE.CylinderGeometry(0.5, 0.44, 0.9, 24), jc, 0, 1.7, 0); torso.scale.z = 0.62; body.add(torso);
     body.add(part(new THREE.SphereGeometry(0.42, 24, 18), skin, 0, 2.58, 0));
     body.add(part(new THREE.SphereGeometry(0.445, 24, 14, 0, Math.PI * 2, 0, 1.95), nv, 0, 2.6, 0));
     [-1, 1].forEach(function (sd) { body.add(part(new THREE.SphereGeometry(0.17, 14, 10), jc, sd * 0.52, 2.02, 0)); });
+    pony = new THREE.Group(); pony.position.set(0, 2.84, 0.4);
+    var tail = new THREE.CylinderGeometry(0.14, 0.05, 0.58, 14); tail.translate(0, -0.33, 0);
+    pony.add(part(new THREE.SphereGeometry(0.15, 14, 10), nv, 0, 0, -0.02));
+    pony.add(new THREE.Mesh(tail, nv));
+    pony.add(part(new THREE.SphereGeometry(0.06, 10, 8), nv, 0, -0.62, 0));
+    var tie = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.048, 10, 20), cy); tie.rotation.x = Math.PI / 2; tie.position.set(0, -0.07, 0); pony.add(tie);
+    pony.visible = false; body.add(pony);
     jerseyCv = document.createElement('canvas'); jerseyCv.width = jerseyCv.height = 512;
     jerseyTex = new THREE.CanvasTexture(jerseyCv); jerseyTex.anisotropy = maxAniso;
     var jm = new THREE.MeshStandardMaterial({ map: jerseyTex, transparent: true, roughness: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     body.add(part(new THREE.PlaneGeometry(0.78, 0.78), jm, 0, 1.72, 0.318));
-    drawJersey();
+    applyKit();
     if (document.fonts && document.fonts.load) document.fonts.load('800 100px Montserrat', 'ABC123').then(drawJersey, function () {});
     player.add(legs, body); player.visible = false; court.add(player);
     var armGeo = new THREE.CylinderGeometry(0.1, 0.085, 1, 10); armGeo.translate(0, 0.5, 0);
@@ -551,7 +569,7 @@
   /* ---------- jugador: dorsal y nombre ---------- */
   var iNum = document.getElementById('iNum'), iName = document.getElementById('iName');
   var tWho = document.getElementById('tWho');
-  var playerBox = document.getElementById('player'), who = { num: '', name: '' };
+  var playerBox = document.getElementById('player'), who = { num: '', name: '', sex: 'm', kit: 'a' };
   try {
     var saved = JSON.parse(localStorage.getItem('bb_player') || 'null');
     if (saved) { iNum.value = saved.num || ''; iName.value = saved.name || ''; }
@@ -565,6 +583,30 @@
   iNum.addEventListener('input', readWho); iName.addEventListener('input', readWho);
   [iNum, iName].forEach(function (el) { el.addEventListener('keydown', function (e) { if (e.key === 'Enter') el.blur(); }); });
   readWho();
+  var bBoy = document.getElementById('bBoy'), bGirl = document.getElementById('bGirl');
+  function setSex(v) {
+    who.sex = v === 'f' ? 'f' : 'm';
+    bBoy.setAttribute('aria-pressed', who.sex === 'm'); bGirl.setAttribute('aria-pressed', who.sex === 'f');
+    try { localStorage.setItem('bb_player', JSON.stringify(who)); } catch (err) {}
+  }
+  try { var sv = JSON.parse(localStorage.getItem('bb_player') || 'null'); if (sv && sv.sex) who.sex = sv.sex; if (sv && sv.kit) who.kit = sv.kit; } catch (err) {}
+  setSex(who.sex);
+  var bKitA = document.getElementById('bKitA'), bKitN = document.getElementById('bKitN');
+  function applyKit() {
+    var black = who.kit === 'n';
+    if (jerseyMat) { jerseyMat.color.setHex(black ? 0x1d2025 : JERSEY); shortsMat.color.setHex(black ? 0x15181c : NAVY); drawJersey(); }
+  }
+  function setKit(v) {
+    who.kit = v === 'n' ? 'n' : 'a';
+    bKitA.setAttribute('aria-pressed', who.kit === 'a'); bKitN.setAttribute('aria-pressed', who.kit === 'n');
+    try { localStorage.setItem('bb_player', JSON.stringify(who)); } catch (err) {}
+    applyKit();
+  }
+  setKit(who.kit);
+  bKitA.addEventListener('click', function () { setKit('a'); });
+  bKitN.addEventListener('click', function () { setKit('n'); });
+  bBoy.addEventListener('click', function () { setSex('m'); });
+  bGirl.addEventListener('click', function () { setSex('f'); });
   function whoText() { return (who.num ? '#' + who.num : '') + (who.num && who.name ? ' · ' : '') + who.name; }
   /* ---------- mover el balón ---------- */
   var moving = false, moveDrag = false;
@@ -862,6 +904,7 @@
       player.position.set(ball.spawnX, Math.max(0, off), ball.spawnZ);
       player.rotation.y = Math.atan2(ball.spawnX, ball.spawnZ);
       body.position.y = Math.min(0, off); legs.scale.y = (0.9 + Math.min(0, off)) / 0.9;
+      pony.visible = who.sex === 'f'; pony.rotation.x = -0.3 - off * 0.9 + Math.sin(time * 2.2) * 0.04; pony.rotation.z = Math.sin(time * 1.6) * 0.05;
       player.updateMatrixWorld(true);
       pShadow.position.set(ball.spawnX, 0.012, ball.spawnZ);
       var armsOn = ps > 0.98;
