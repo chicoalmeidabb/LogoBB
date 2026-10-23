@@ -1,9 +1,5 @@
-<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Baloncesto Badajoz 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#1eabd1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -39,7 +35,6 @@
   }
   [hidden] { display: none !important; }
   html, body { height: 100%; }
-  html { color-scheme: light; }
   body {
     margin: 0;
     background: var(--bg);
@@ -122,9 +117,6 @@
   .sheet button { align-self: flex-start; }
   @media (prefers-reduced-motion: reduce) { .toast.show { animation: none; opacity: 1; } }
 </style>
-</head>
-<body>
-
 
 <div class="credit" aria-hidden="true">ChicoAlmeida</div>
 <div class="modal" id="installModal" hidden role="dialog" aria-modal="true" aria-labelledby="imTitle">
@@ -170,6 +162,7 @@
   <div class="controls">
     <button id="bSpin" type="button" aria-pressed="false">Giro continuo</button>
     <button id="bMove" type="button" aria-pressed="false" hidden>Mover jugador</button>
+    <button id="bField" type="button" aria-pressed="false" hidden>Mover campo</button>
     <button id="bMode" type="button" class="primary">Convertir en canasta</button>
     <button id="bReset" type="button">Reiniciar</button>
   </div>
@@ -303,70 +296,147 @@
     else if (num) put(num, 280, 340, 200);
     jerseyTex.needsUpdate = true;
   }
+  function lerpProf(P, y) {            // perfil [y, ancho, fondo] -> [ancho, fondo]
+    if (y <= P[0][0]) return [P[0][1], P[0][2]];
+    for (var i = 1; i < P.length; i++) if (y <= P[i][0]) {
+      var t = (y - P[i - 1][0]) / (P[i][0] - P[i - 1][0]);
+      return [P[i - 1][1] + (P[i][1] - P[i - 1][1]) * t, P[i - 1][2] + (P[i][2] - P[i - 1][2]) * t];
+    }
+    var L = P[P.length - 1]; return [L[1], L[2]];
+  }
+  function shaped(P, m, segs) {        // cuerpo de sección elíptica según perfil
+    var y0 = P[0][0], y1 = P[P.length - 1][0];
+    var g = new THREE.CylinderGeometry(1, 1, 1, 32, segs || 16, false), pos = g.attributes.position;
+    for (var i = 0; i < pos.count; i++) {
+      var y = y0 + (pos.getY(i) + 0.5) * (y1 - y0), w = lerpProf(P, y);
+      pos.setXYZ(i, pos.getX(i) * w[0], y, pos.getZ(i) * w[1]);
+    }
+    g.computeVertexNormals();
+    return new THREE.Mesh(g, m);
+  }
+  var LU = 0.55, LF = 0.5;
   function buildPlayer() {
     player = new THREE.Group(); body = new THREE.Group(); legs = new THREE.Group();
-    var skin = mat(0xe0b08a, 0.6), cy = mat(CYAN, 0.5), nv = mat(NAVY, 0.5), jc = mat(JERSEY, 0.5), sm = mat(JERSEY, 0.5), hairM = mat(0x74492a, 0.8), bandM = mat(0xffffff, 0.5), trimM = mat(NAVY, 0.5);
+    var skin = mat(0xe0b08a, 0.6), skinD = mat(0xc98f68, 0.7), cy = mat(CYAN, 0.5), jc = mat(JERSEY, 0.5), sm = mat(JERSEY, 0.5), hairM = mat(0x74492a, 0.8), bandM = mat(0xffffff, 0.5), trimM = mat(NAVY, 0.5);
+    var dark = mat(0x2a1d16, 0.6), lip = mat(0xa8584e, 0.6), white = mat(0xffffff, 0.4);
     jerseyMat = jc; shortsMat = sm; bandMat = bandM; trimMat = trimM;
     function part(geo, m, x, y, z) { var o = new THREE.Mesh(geo, m); o.position.set(x, y, z); return o; }
-    [-0.2, 0.2].forEach(function (x) {
-      legs.add(part(new THREE.CylinderGeometry(0.15, 0.13, 0.9, 14), skin, x, 0.45, 0));
-      var shoe = part(new THREE.SphereGeometry(1, 16, 12), cy, x, 0.11, -0.06); shoe.scale.set(0.19, 0.12, 0.3); player.add(shoe);
+    /* piernas */
+    [-0.145, 0.145].forEach(function (x) {
+      legs.add(part(new THREE.CylinderGeometry(0.135, 0.09, 0.3, 18), skin, x, 0.83, 0));                // muslo bajo
+      legs.add(part(new THREE.SphereGeometry(0.09, 14, 10), skin, x, 0.7, -0.005));                       // rodilla
+      var calf = part(new THREE.SphereGeometry(1, 14, 12), skin, x, 0.52, 0.025); calf.scale.set(0.09, 0.18, 0.1); legs.add(calf);
+      legs.add(part(new THREE.CylinderGeometry(0.085, 0.056, 0.5, 14), skin, x, 0.46, 0));                // gemelo/espinilla
+      legs.add(part(new THREE.CylinderGeometry(0.07, 0.062, 0.26, 14), bandM, x, 0.28, 0));              // calcetín
+      var shoe = part(new THREE.SphereGeometry(1, 18, 12), cy, x, 0.08, -0.05); shoe.scale.set(0.095, 0.075, 0.2); player.add(shoe);
+      var sole = part(new THREE.SphereGeometry(1, 18, 8), bandM, x, 0.032, -0.05); sole.scale.set(0.1, 0.035, 0.208); player.add(sole);
     });
-    var shorts = part(new THREE.CylinderGeometry(0.42, 0.47, 0.5, 24), sm, 0, 1.05, 0); shorts.scale.z = 0.65; body.add(shorts);
-    [0.86, 0.94].forEach(function (yy) {
-      var r = 0.47 - (yy - 0.8) / 0.5 * 0.05 + 0.006;
-      var band = part(new THREE.CylinderGeometry(r, r, 0.03, 24, 1, true), bandM, 0, yy, 0); band.scale.z = 0.65; body.add(band);
+    /* pantalón */
+    var hips = shaped([[1.02, 0.30, 0.185], [1.25, 0.305, 0.185], [1.45, 0.285, 0.172]], sm, 6); body.add(hips);
+    [-0.145, 0.145].forEach(function (x) {
+      var tube = part(new THREE.CylinderGeometry(0.15, 0.165, 0.3, 20), sm, x, 0.98, 0); tube.scale.z = 1.12; body.add(tube);
+      [0.86, 0.915].forEach(function (yy) {
+        var r = 0.165 - (yy - 0.83) / 0.3 * 0.015 + 0.004;
+        var band = part(new THREE.CylinderGeometry(r, r, 0.028, 20, 1, true), bandM, x, yy, 0); band.scale.z = 1.12; body.add(band);
+      });
     });
-    var collar = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.035, 8, 28), trimM);
-    collar.rotation.x = Math.PI / 2; collar.scale.y = 0.62; collar.position.set(0, 2.14, 0); body.add(collar);
-    var hem = part(new THREE.CylinderGeometry(0.447, 0.447, 0.04, 24, 1, true), trimM, 0, 1.275, 0); hem.scale.z = 0.62; body.add(hem);
-    var torso = part(new THREE.CylinderGeometry(0.5, 0.44, 0.9, 24), jc, 0, 1.7, 0); torso.scale.z = 0.62; body.add(torso);
-    body.add(part(new THREE.SphereGeometry(0.42, 24, 18), skin, 0, 2.58, 0));
-    body.add(part(new THREE.SphereGeometry(0.445, 24, 14, 0, Math.PI * 2, 0, 1.95), hairM, 0, 2.6, 0));
-    [-1, 1].forEach(function (sd) { body.add(part(new THREE.SphereGeometry(0.17, 14, 10), jc, sd * 0.52, 2.02, 0)); });
-    pony = new THREE.Group(); pony.position.set(0, 2.84, 0.4);
-    var tail = new THREE.CylinderGeometry(0.14, 0.05, 0.58, 14); tail.translate(0, -0.33, 0);
-    pony.add(part(new THREE.SphereGeometry(0.15, 14, 10), hairM, 0, 0, -0.02));
-    pony.add(new THREE.Mesh(tail, hairM));
-    pony.add(part(new THREE.SphereGeometry(0.06, 10, 8), hairM, 0, -0.62, 0));
-    var tie = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.048, 10, 20), cy); tie.rotation.x = Math.PI / 2; tie.position.set(0, -0.07, 0); pony.add(tie);
-    pony.visible = false; body.add(pony);
+    /* tronco: capa de piel (hombros) + camiseta sin mangas */
+    var PJ = [[1.30, 0.305, 0.185], [1.55, 0.26, 0.162], [1.85, 0.33, 0.2], [2.08, 0.34, 0.205], [2.24, 0.255, 0.17], [2.34, 0.13, 0.1]];
+    var PS = [[1.30, 0.29, 0.175], [1.55, 0.245, 0.152], [1.85, 0.315, 0.19], [2.08, 0.325, 0.195], [2.24, 0.30, 0.17], [2.36, 0.14, 0.1]];
+    body.add(shaped(PS, skin, 18));
+    var torso = shaped(PJ, jc, 18); body.add(torso);
+    var hem = shaped([[1.29, 0.309, 0.189], [1.33, 0.309, 0.189]], trimM, 1); body.add(hem);
+    var collar = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.016, 8, 28), trimM);
+    collar.rotation.x = Math.PI / 2; collar.scale.y = 0.8; collar.position.set(0, 2.335, 0); body.add(collar);
+    [-1, 1].forEach(function (sd) {
+      var d = part(new THREE.SphereGeometry(0.09, 14, 12), skin, sd * 0.4, 2.2, 0); d.scale.set(1, 1.1, 1); body.add(d);   // deltoides
+    });
+    body.add(part(new THREE.CylinderGeometry(0.068, 0.085, 0.22, 14), skin, 0, 2.47, 0));                                       // cuello
+    /* camiseta: placa con dorsal curvada sobre el torso */
     jerseyCv = document.createElement('canvas'); jerseyCv.width = jerseyCv.height = 512;
     jerseyTex = new THREE.CanvasTexture(jerseyCv); jerseyTex.anisotropy = maxAniso;
+    var pg = new THREE.PlaneGeometry(0.58, 0.66, 16, 10), pp = pg.attributes.position;
+    for (var i = 0; i < pp.count; i++) {
+      var yy = 1.76 + pp.getY(i), w = lerpProf(PJ, yy), k = Math.min(0.999, Math.abs(pp.getX(i)) / w[0]);
+      pp.setZ(i, w[1] * Math.sqrt(1 - k * k) + 0.004);
+    }
+    pg.computeVertexNormals();
     var jm = new THREE.MeshStandardMaterial({ map: jerseyTex, transparent: true, roughness: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-    body.add(part(new THREE.PlaneGeometry(0.78, 0.78), jm, 0, 1.72, 0.318));
+    var jpl = new THREE.Mesh(pg, jm); jpl.position.set(0, 1.76, 0); body.add(jpl);
+    /* cabeza */
+    var head = part(new THREE.SphereGeometry(0.19, 32, 24), skin, 0, 2.73, 0); head.scale.set(0.88, 1.08, 1.0); body.add(head);
+    var jaw = part(new THREE.SphereGeometry(0.13, 24, 16), skin, 0, 2.63, -0.04); jaw.scale.set(0.98, 0.85, 1.0); body.add(jaw);
+    var hair = part(new THREE.SphereGeometry(0.2, 32, 18, 0, Math.PI * 2, 0, 1.8), hairM, 0, 2.74, 0.006); hair.scale.set(0.9, 1.1, 1.04); hair.rotation.x = -0.42; body.add(hair);
+    [-1, 1].forEach(function (sd) {
+      var eye = part(new THREE.SphereGeometry(0.024, 12, 10), white, sd * 0.065, 2.735, -0.168); eye.scale.set(1.2, 0.8, 0.6); body.add(eye);
+      body.add(part(new THREE.SphereGeometry(0.014, 10, 8), dark, sd * 0.065, 2.735, -0.18));
+      var br = part(new THREE.BoxGeometry(0.075, 0.014, 0.012), hairM, sd * 0.067, 2.775, -0.172); br.rotation.z = sd * 0.1; body.add(br);
+      var ear = part(new THREE.SphereGeometry(0.04, 10, 8), skin, sd * 0.165, 2.71, 0.01); ear.scale.x = 0.5; body.add(ear);
+    });
+    var nose = part(new THREE.SphereGeometry(0.026, 10, 8), skinD, 0, 2.69, -0.188); nose.scale.set(0.9, 1.2, 1.2); body.add(nose);
+    body.add(part(new THREE.BoxGeometry(0.06, 0.011, 0.01), lip, 0, 2.625, -0.172));
+    pony = new THREE.Group(); pony.position.set(0, 2.84, 0.17);
+    var tail = new THREE.CylinderGeometry(0.075, 0.025, 0.46, 14); tail.translate(0, -0.27, 0);
+    pony.add(part(new THREE.SphereGeometry(0.08, 14, 10), hairM, 0, 0, -0.015));
+    pony.add(new THREE.Mesh(tail, hairM));
+    pony.add(part(new THREE.SphereGeometry(0.034, 10, 8), hairM, 0, -0.5, 0));
+    var tie = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.028, 10, 20), cy); tie.rotation.x = Math.PI / 2; tie.position.set(0, -0.05, 0); pony.add(tie);
+    pony.visible = false; body.add(pony);
     applyKit();
     if (document.fonts && document.fonts.load) document.fonts.load('800 100px Montserrat', 'ABC123').then(drawJersey, function () {});
-    player.add(legs, body); player.visible = false; court.add(player);
-    var armGeo = new THREE.CylinderGeometry(0.1, 0.085, 1, 10); armGeo.translate(0, 0.5, 0);
-    armL = new THREE.Mesh(armGeo, skin); armR = new THREE.Mesh(armGeo, skin);
-    var hg = new THREE.SphereGeometry(0.14, 14, 10);
+    var hold = new THREE.Group(); hold.position.y = 0.14; hold.add(body); player.add(legs, hold); legs.scale.y = 1.14; player.visible = false; court.add(player);
+    /* brazos de dos tramos con codo */
+    var uG = new THREE.CylinderGeometry(0.07, 0.058, 1, 14); uG.translate(0, 0.5, 0);
+    var fG = new THREE.CylinderGeometry(0.058, 0.042, 1, 14); fG.translate(0, 0.5, 0);
+    function mkArm() {
+      var g = new THREE.Group();
+      g.userData.u = new THREE.Mesh(uG, skin); g.userData.f = new THREE.Mesh(fG, skin);
+      g.userData.e = new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 10), skin);
+      g.add(g.userData.u, g.userData.f, g.userData.e); return g;
+    }
+    armL = mkArm(); armR = mkArm();
+    var hg = new THREE.SphereGeometry(1, 16, 12);
     handL = new THREE.Mesh(hg, skin); handR = new THREE.Mesh(hg, skin);
+    handL.scale.set(0.075, 0.095, 0.05); handR.scale.set(0.075, 0.095, 0.05);
     court.add(armL, armR, handL, handR);
     armL.visible = armR.visible = handL.visible = handR.visible = false;
     pShadow = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }));
-    pShadow.rotation.x = -Math.PI / 2; pShadow.scale.setScalar(0.62); pShadow.visible = false; court.add(pShadow);
+    pShadow.rotation.x = -Math.PI / 2; pShadow.scale.setScalar(0.55); pShadow.visible = false; court.add(pShadow);
   }
   var hV = new THREE.Vector3(), fV = new THREE.Vector3(), rV = new THREE.Vector3(), tgV = new THREE.Vector3(), shV = new THREE.Vector3(), axV = new THREE.Vector3(), upV = new THREE.Vector3(0, 1, 0);
+  var elV = new THREE.Vector3(), poV = new THREE.Vector3(), dirV = new THREE.Vector3(), hcV = new THREE.Vector3();
   var handCur = [new THREE.Vector3(), new THREE.Vector3()], handInit = false;
   function updateArms(dt, off) {
     var th = player.rotation.y, sn = Math.sin(th), cs = Math.cos(th), hp = ball.hp, st = ball.state, rel = ball.rel;
     var arms = [armL, armR], hands = [handL, handR], k = 1 - Math.exp(-dt * 25);
     for (var i = 0; i < 2; i++) {
       var sd = i === 0 ? -1 : 1;
-      hV.set(hp.x + cs * 0.3 * sd + sn * 0.05, hp.y + off - 0.02, hp.z - sn * 0.3 * sd + cs * 0.05);
-      fV.set(hp.x + cs * 0.22 * sd - sn * 0.3, hp.y + JUMP + 0.55, hp.z - sn * 0.22 * sd - cs * 0.3);
-      rV.set(player.position.x + cs * 0.62 * sd - sn * 0.05, player.position.y + 1.3, player.position.z - sn * 0.62 * sd - cs * 0.05);
+      hV.set(hp.x + cs * 0.27 * sd + sn * 0.05, hp.y + off - 0.02, hp.z - sn * 0.27 * sd + cs * 0.05);
+      fV.set(hp.x + cs * 0.2 * sd - sn * 0.3, hp.y + JUMP + 0.55, hp.z - sn * 0.2 * sd - cs * 0.3);
+      rV.set(player.position.x + cs * 0.5 * sd - sn * 0.05, player.position.y + 1.45, player.position.z - sn * 0.5 * sd - cs * 0.05);
       if (st === 'flying') {
         if (rel < 0.5) tgV.copy(hV).lerp(fV, Math.min(1, rel / 0.1));
         else tgV.copy(fV).lerp(rV, Math.min(1, (rel - 0.5) / 0.5));
       } else tgV.copy(hV);
       if (!handInit) handCur[i].copy(tgV); else handCur[i].lerp(tgV, k);
-      hands[i].position.copy(handCur[i]);
-      shV.set(sd * 0.52, 2.02, 0); body.localToWorld(shV);
+      shV.set(sd * 0.4, 2.2, 0); body.localToWorld(shV);
+      /* IK de dos huesos: el codo cae hacia abajo y afuera */
       axV.copy(handCur[i]).sub(shV);
-      var len = Math.max(0.05, axV.length());
-      arms[i].position.copy(shV); arms[i].scale.set(1, len, 1); arms[i].quaternion.setFromUnitVectors(upV, axV.normalize());
+      var d = axV.length(), dd = Math.min(LU + LF - 0.002, Math.max(Math.abs(LU - LF) + 0.02, d));
+      dirV.copy(axV).divideScalar(Math.max(d, 1e-4));
+      hcV.copy(shV).addScaledVector(dirV, dd);                         // mano alcanzable
+      var a = (LU * LU - LF * LF + dd * dd) / (2 * dd), h = Math.sqrt(Math.max(0, LU * LU - a * a));
+      poV.set(cs * sd * 0.6 + sn * 0.2, -0.85, -sn * sd * 0.6 + cs * 0.2);
+      poV.addScaledVector(dirV, -poV.dot(dirV)).normalize();
+      elV.copy(shV).addScaledVector(dirV, a).addScaledVector(poV, h);
+      var g = arms[i].userData;
+      g.u.position.copy(shV); g.u.scale.set(1, LU, 1);
+      axV.copy(elV).sub(shV).normalize(); g.u.quaternion.setFromUnitVectors(upV, axV);
+      g.e.position.copy(elV);
+      g.f.position.copy(elV); axV.copy(hcV).sub(elV); g.f.scale.set(1, Math.max(0.05, axV.length()), 1);
+      g.f.quaternion.setFromUnitVectors(upV, axV.normalize());
+      hands[i].position.copy(hcV);
+      hands[i].quaternion.setFromUnitVectors(upV, axV);
     }
     handInit = true;
   }
@@ -621,23 +691,38 @@
   bBoy.addEventListener('click', function () { setSex('m'); });
   bGirl.addEventListener('click', function () { setSex('f'); });
   function whoText() { return (who.num ? '#' + who.num : '') + (who.num && who.name ? ' · ' : '') + who.name; }
-  /* ---------- mover el balón ---------- */
+  /* ---------- mover jugador y mover campo ---------- */
   var moving = false, moveDrag = false;
+  var orbitOn = false, oYaw = 0, oPitch = 0, oZoom = 1, cYaw = 0, cPitch = 0, cZoom = 1;
   var ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), ballPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
   function moveTo(e) {
     var r = canvas.getBoundingClientRect();
     ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height * 2 - 1));
     ray.setFromCamera(ndc, camera);
     if (!ray.ray.intersectPlane(ballPlane, hit)) return;
-    var z = Math.max(2.5, Math.min(7, hit.z));
-    var dist = Math.max(4, courtZ - z), halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect * dist;
-    var xl = Math.min(4, Math.max(1, halfW - 0.8)), x = Math.max(-xl, Math.min(xl, hit.x));
+    var z = Math.max(2.5, Math.min(7, hit.z)), xl = 4;
+    if (Math.abs(cYaw) < 0.3) {
+      var dist = Math.max(4, camera.position.distanceTo(hit)), halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect * dist;
+      xl = Math.min(4, Math.max(1, halfW - 0.8));
+    }
+    var x = Math.max(-xl, Math.min(xl, hit.x));
     setHold(x, z);
+  }
+  function updateHint() {
+    document.getElementById('hHint').textContent = moving ? 'Arrastra para colocar al jugador'
+      : orbitOn ? 'Arrastra para girar el campo · pellizca para acercar' : 'Arrastra hacia abajo y suelta para lanzar';
   }
   function setMoving(on) {
     moving = on; moveDrag = false; aim = null;
-    bMove.setAttribute('aria-pressed', on); bMove.textContent = on ? 'Listo, a tirar' : 'Mover jugador';
-    document.getElementById('hHint').textContent = on ? 'Arrastra para colocar al jugador' : 'Arrastra hacia abajo y suelta para lanzar';
+    bMove.setAttribute('aria-pressed', on);
+    if (on && orbitOn) setOrbit(false);
+    updateHint();
+  }
+  function setOrbit(on) {
+    orbitOn = on; aim = null;
+    bField.setAttribute('aria-pressed', on);
+    if (on && moving) setMoving(false);
+    updateHint();
   }
 
   /* ---------- entrada ---------- */
@@ -679,6 +764,7 @@
     canvas.setPointerCapture(e.pointerId);
     pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
     if (mode === 'court') {
+      if (orbitOn) { last.x = e.clientX; last.y = e.clientY; lastPinch = 0; return; }
       if (u > 0.98 && ball.state === 'ready') {
         if (moving) { moveDrag = true; moveTo(e); }
         else aim = { x0: e.clientX, y0: e.clientY, dx: 0, dy: 0 };
@@ -691,6 +777,18 @@
     if (!pointers[e.pointerId]) return;
     pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
     if (mode === 'court') {
+      if (orbitOn) {
+        var oids = Object.keys(pointers);
+        if (oids.length >= 2) {
+          var pa = pointers[oids[0]], pb = pointers[oids[1]], pd = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+          if (lastPinch) oZoom = Math.min(2.2, Math.max(0.55, oZoom * (pd / lastPinch)));
+          lastPinch = pd; return;
+        }
+        var odx = e.clientX - last.x, ody = e.clientY - last.y;
+        last.x = e.clientX; last.y = e.clientY;
+        oYaw -= odx * 0.008; oPitch = Math.max(-0.03, Math.min(1.14, oPitch + ody * 0.004));
+        return;
+      }
       if (moveDrag) moveTo(e);
       else if (aim) { aim.dx = e.clientX - aim.x0; aim.dy = e.clientY - aim.y0; }
       return;
@@ -716,6 +814,12 @@
   canvas.addEventListener('pointerup', up);
   canvas.addEventListener('pointercancel', function (e) { delete pointers[e.pointerId]; aim = null; moveDrag = false; dragging = false; });
   canvas.addEventListener('wheel', function (e) {
+    if (mode === 'court') {
+      if (!orbitOn) return;
+      e.preventDefault();
+      oZoom = Math.min(2.2, Math.max(0.55, oZoom * (e.deltaY > 0 ? 0.93 : 1.07)));
+      return;
+    }
     if (mode !== 'logo') return;
     e.preventDefault();
     zoom = Math.min(2.2, Math.max(0.5, zoom * (e.deltaY > 0 ? 0.93 : 1.07)));
@@ -727,23 +831,24 @@
     else if (k === 'ArrowUp') pitch = Math.max(-0.7, pitch - 0.1); else if (k === 'ArrowDown') pitch = Math.min(0.7, pitch + 0.1);
   });
 
-  var bMove = document.getElementById('bMove'), bSpin = document.getElementById('bSpin'), bMode = document.getElementById('bMode'), sub = document.getElementById('subtitle');
+  var bMove = document.getElementById('bMove'), bField = document.getElementById('bField'), bSpin = document.getElementById('bSpin'), bMode = document.getElementById('bMode'), sub = document.getElementById('subtitle');
   bSpin.addEventListener('click', function () { spin = !spin; bSpin.setAttribute('aria-pressed', spin); });
   bMove.addEventListener('click', function () { if (mode === 'court') setMoving(!moving); });
+  bField.addEventListener('click', function () { if (mode === 'court') setOrbit(!orbitOn); });
   bMode.addEventListener('click', function () { setMode(mode === 'logo' ? 'court' : 'logo'); });
   document.getElementById('bReset').addEventListener('click', function () {
-    if (mode === 'court') { score = 0; tries = 0; hudText(); newBall(true); setMoving(false); }
+    if (mode === 'court') { score = 0; tries = 0; hudText(); newBall(true); setMoving(false); setOrbit(false); oYaw = oPitch = 0; oZoom = 1; }
     else { yaw = pitch = vYaw = vPitch = 0; zoom = 1; spin = false; bSpin.setAttribute('aria-pressed', false); }
   });
   function setMode(m) {
     mode = m; aim = null; aimDots && (aimDots.visible = false);
     if (m === 'court') {
-      newBall(true); spin = false; bSpin.setAttribute('aria-pressed', false); setMoving(false);
-      bMode.textContent = 'Volver al logo'; bMode.classList.remove('primary'); bSpin.hidden = true; bMove.hidden = false; playerBox.hidden = false;
+      newBall(true); spin = false; bSpin.setAttribute('aria-pressed', false); setMoving(false); setOrbit(false); oYaw = oPitch = 0; oZoom = 1;
+      bMode.textContent = 'Volver al logo'; bMode.classList.remove('primary'); bSpin.hidden = true; bMove.hidden = false; bField.hidden = false; playerBox.hidden = false;
       sub.textContent = 'Arrastra hacia abajo para dar fuerza y a los lados para apuntar. Suelta para lanzar.';
       hud.hidden = false; hudText();
     } else {
-      setMoving(false); bMode.textContent = 'Convertir en canasta'; bMode.classList.add('primary'); bSpin.hidden = false; bMove.hidden = true; playerBox.hidden = true;
+      setMoving(false); setOrbit(false); oYaw = oPitch = 0; oZoom = 1; bMode.textContent = 'Convertir en canasta'; bMode.classList.add('primary'); bSpin.hidden = false; bMove.hidden = true; bField.hidden = true; playerBox.hidden = true;
       sub.textContent = 'Arrastra para girar · pellizca o usa la rueda para acercar';
       hud.hidden = true;
     }
@@ -916,7 +1021,7 @@
       player.scale.setScalar(Math.max(0.001, ps));
       player.position.set(ball.spawnX, Math.max(0, off), ball.spawnZ);
       player.rotation.y = Math.atan2(ball.spawnX, ball.spawnZ);
-      body.position.y = Math.min(0, off); legs.scale.y = (0.9 + Math.min(0, off)) / 0.9;
+      body.position.y = Math.min(0, off); legs.scale.y = 1.14 * (0.98 + Math.min(0, off)) / 0.98;
       pony.visible = who.sex === 'f'; pony.rotation.x = -0.3 - off * 0.9 + Math.sin(time * 2.2) * 0.04; pony.rotation.z = Math.sin(time * 1.6) * 0.05;
       player.updateMatrixWorld(true);
       pShadow.position.set(ball.spawnX, 0.012, ball.spawnZ);
@@ -928,7 +1033,12 @@
     if (court.visible) updateNet(time);
 
     /* cámara */
-    camLogo.set(0, 0.1, logoDist / zoom); camCourt.set(0, 4.4, courtZ);
+    var ko = 1 - Math.exp(-dt * 10);
+    cYaw += (oYaw - cYaw) * ko; cPitch += (oPitch - cPitch) * ko; cZoom += (oZoom - cZoom) * ko;
+    var r0 = Math.hypot(1.1, courtZ), phi0 = Math.atan2(1.1, courtZ);
+    var phi = Math.max(0.03, Math.min(1.2, phi0 + cPitch)), rr = r0 / cZoom;
+    camLogo.set(0, 0.1, logoDist / zoom);
+    camCourt.set(Math.sin(cYaw) * Math.cos(phi) * rr, 3.3 + Math.sin(phi) * rr, Math.cos(cYaw) * Math.cos(phi) * rr);
     camera.position.lerpVectors(camLogo, camCourt, e);
     tgt.set(0, 3.3 * e, 0);
     camera.lookAt(tgt);
@@ -940,6 +1050,3 @@
   catch (err) { loading.hidden = false; loading.textContent = 'No se pudo preparar la escena 3D: ' + (err && err.message ? err.message : err); }
 })();
 </script>
-
-</body>
-</html>
