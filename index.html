@@ -52,6 +52,7 @@
   .app { display: flex; flex-direction: column; height: 100%; gap: 8px; }
   header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-top: 10px; flex-wrap: wrap; }
   header h1 { margin: 0; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+  .ver { margin-left: 6px; padding: 2px 7px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: .62rem; letter-spacing: .04em; color: var(--muted); vertical-align: 1px; text-transform: none; font-weight: 700; }
   header p { margin: 0; font-size: 0.75rem; color: var(--muted); }
   .stage { position: relative; flex: 1; min-height: 0; min-width: 0; }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; outline: none; }
@@ -132,11 +133,29 @@
     .app { gap: 6px; }
     .player input { font-size: 16px; padding: 5px 12px; }
     #iNum { width: 80px; }
-    #iName { flex: 1 1 150px; max-width: 230px; }
+    #iName { flex: 1 1 120px; max-width: 150px; }
     .hud span { font-size: .84rem; padding: 5px 12px; }
     header h1 { font-size: .85rem; }
   }
   @media (max-width: 640px) { header p { display: none; } }
+  .hb { font-size: .78rem; padding: 6px 13px; }
+  .acad { position: fixed; inset: 0; z-index: 60; background: var(--bg); color: var(--fg); overflow: auto; -webkit-overflow-scrolling: touch; }
+  .acad-in { max-width: 520px; margin: 0 auto; padding: max(14px, env(safe-area-inset-top)) 16px 34px; display: flex; flex-direction: column; gap: 12px; }
+  .acad-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .acad-top h2 { margin: 0; font-size: 1.05rem; font-weight: 800; }
+  .acad canvas { width: 100%; max-width: 340px; aspect-ratio: 320 / 380; height: auto; border-radius: 14px; border: 1.5px solid var(--line); background: var(--panel); display: block; margin: 0 auto; cursor: default; }
+  .acchips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; justify-content: center; }
+  .acchips span { padding: 4px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: .8rem; font-weight: 700; }
+  .acchips span.z { background: #f59e0b; color: #1b1200; border-color: #f59e0b; }
+  .acchips span.bad { background: #d9534f; color: #fff; border-color: #d9534f; }
+  .acs { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; font-size: .95rem; line-height: 1.45; }
+  .acn { margin: 0; font-size: .82rem; color: var(--muted); line-height: 1.4; text-align: center; }
+  .acq { font-weight: 800; font-size: 1.02rem; line-height: 1.35; text-align: center; }
+  .acopts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .acopts.v { flex-direction: column; align-items: stretch; }
+  .acopts.v button { text-align: left; border-radius: 14px; padding: 12px 14px; font-size: .92rem; }
+  .acfb { padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--panel); font-size: .92rem; line-height: 1.45; margin-bottom: 8px; }
+  .acfb.ok { border-color: #2f9e5b; } .acfb.no { border-color: #d9534f; }
   @media (prefers-reduced-motion: reduce) { .toast.show { animation: none; opacity: 1; } }
 </style>
 
@@ -151,13 +170,14 @@
 </div>
 <div class="app">
   <header>
-    <h1>Baloncesto Badajoz</h1>
+    <h1>Baloncesto Badajoz <span class="ver" id="ver"></span></h1>
     <p id="subtitle">Arrastra para girar · pellizca o usa la rueda para acercar</p>
+    <button id="bAcad" class="hb" type="button">Academia</button>
   </header>
   <div class="stage" id="stage">
     <canvas id="c" tabindex="0" aria-label="Logo 3D de Baloncesto Badajoz. Arrástralo para girarlo."></canvas>
     <div class="hud" id="hud" hidden>
-      <span id="hScore">Canastas 0 / 0</span>
+      <span id="hScore">Puntos 0 · 0/0</span>
       <span class="hint" id="hHint">Arrastra hacia abajo y suelta para lanzar</span>
     </div>
     <div class="toast" id="toast" aria-live="polite"><span id="tMain">¡Canasta!</span><small id="tWho"></small></div>
@@ -181,6 +201,7 @@
     <i class="br"></i>
     <input id="iNum" type="text" inputmode="numeric" maxlength="2" placeholder="Dorsal" autocomplete="off" aria-label="Tu dorsal">
     <input id="iName" type="text" maxlength="14" placeholder="Tu nombre" autocomplete="off" aria-label="Tu nombre">
+    <button id="bDef" type="button" aria-pressed="false" title="Uno contra uno: con defensor">1x1</button>
   </div>
   <div class="controls">
     <button id="bSpin" type="button" aria-pressed="false">Giro continuo</button>
@@ -205,9 +226,10 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 0.3;
+  var APP_V = 'v3.0',  CAMH = 2.9, R3 = 6.75, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
+  document.getElementById('ver').textContent = APP_V;
   var canvas = document.getElementById('c');
   var loading = document.getElementById('loading');
   var hud = document.getElementById('hud');
@@ -261,7 +283,7 @@
   }
 
   var emblem, pill, word, ballMesh, shadow;
-  var player, body, legs, pony, jerseyMat, shortsMat, bandMat, trimMat, pShadow, armL, armR, handL, handR, jerseyCv, jerseyTex, bodyOff = 0, liveNow = false;
+  var pMats, pIdx, mkArmG, handGeo, dP, dBody, dLegs, dArmL, dArmR, dHandL, dHandR, dShadow, player, body, legs, pony, jerseyMat, shortsMat, bandMat, trimMat, pShadow, armL, armR, handL, handR, jerseyCv, jerseyTex, bodyOff = 0, liveNow = false;
   var aimDots, boardG, hoopG, poleG, netLines, floorMat, lineMat, lineMeshes = [];
   var NA = 16, NL = 6, netPos, netVerts = [];
   var circleOff = new THREE.Vector3(), sBall = 1;
@@ -408,7 +430,8 @@
     pony.visible = false; body.add(pony);
     applyKit();
     if (document.fonts && document.fonts.load) document.fonts.load('800 100px Montserrat', 'ABC123').then(drawJersey, function () {});
-    var hold = new THREE.Group(); hold.position.y = 0.14; hold.add(body); player.add(legs, hold); legs.scale.y = 1.14; player.visible = false; court.add(player);
+    var hold = new THREE.Group(); hold.position.y = 0.14; hold.add(body); player.add(legs, hold); legs.scale.y = 1.14;
+    pMats = { jc: jc, sm: sm, trim: trimM, shoe: cy, hair: hairM, band: bandM, jm: jm, skin: skin }; pIdx = { legs: player.children.indexOf(legs), hold: player.children.indexOf(hold) }; player.visible = false; court.add(player);
     /* brazos de dos tramos con codo */
     var uG = new THREE.CylinderGeometry(0.07, 0.058, 1, 14); uG.translate(0, 0.5, 0);
     var fG = new THREE.CylinderGeometry(0.058, 0.042, 1, 14); fG.translate(0, 0.5, 0);
@@ -418,8 +441,8 @@
       g.userData.e = new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 10), skin);
       g.add(g.userData.u, g.userData.f, g.userData.e); return g;
     }
-    armL = mkArm(); armR = mkArm();
-    var hg = new THREE.SphereGeometry(1, 16, 12);
+    mkArmG = mkArm; armL = mkArm(); armR = mkArm();
+    var hg = new THREE.SphereGeometry(1, 16, 12); handGeo = hg;
     handL = new THREE.Mesh(hg, skin); handR = new THREE.Mesh(hg, skin);
     handL.scale.set(0.075, 0.095, 0.05); handR.scale.set(0.075, 0.095, 0.05);
     court.add(armL, armR, handL, handR);
@@ -430,6 +453,26 @@
   var hV = new THREE.Vector3(), fV = new THREE.Vector3(), rV = new THREE.Vector3(), tgV = new THREE.Vector3(), shV = new THREE.Vector3(), axV = new THREE.Vector3(), upV = new THREE.Vector3(0, 1, 0);
   var elV = new THREE.Vector3(), poV = new THREE.Vector3(), dirV = new THREE.Vector3(), hcV = new THREE.Vector3();
   var handCur = [new THREE.Vector3(), new THREE.Vector3()], handInit = false;
+  function ik(bodyRef, arm, hand, hc0, sd, sn, cs) {
+      shV.set(sd * 0.4, 2.2, 0); bodyRef.localToWorld(shV);
+      /* IK de dos huesos: el codo cae hacia abajo y afuera */
+      axV.copy(hc0).sub(shV);
+      var d = axV.length(), dd = Math.min(LU + LF - 0.002, Math.max(Math.abs(LU - LF) + 0.02, d));
+      dirV.copy(axV).divideScalar(Math.max(d, 1e-4));
+      hcV.copy(shV).addScaledVector(dirV, dd);                         // mano alcanzable
+      var a = (LU * LU - LF * LF + dd * dd) / (2 * dd), h = Math.sqrt(Math.max(0, LU * LU - a * a));
+      poV.set(cs * sd * 0.6 + sn * 0.2, -0.85, -sn * sd * 0.6 + cs * 0.2);
+      poV.addScaledVector(dirV, -poV.dot(dirV)).normalize();
+      elV.copy(shV).addScaledVector(dirV, a).addScaledVector(poV, h);
+      var g = arm.userData;
+      g.u.position.copy(shV); g.u.scale.set(1, LU, 1);
+      axV.copy(elV).sub(shV).normalize(); g.u.quaternion.setFromUnitVectors(upV, axV);
+      g.e.position.copy(elV);
+      g.f.position.copy(elV); axV.copy(hcV).sub(elV); g.f.scale.set(1, Math.max(0.05, axV.length()), 1);
+      g.f.quaternion.setFromUnitVectors(upV, axV.normalize());
+      hand.position.copy(hcV);
+      hand.quaternion.setFromUnitVectors(upV, axV);
+  }
   function updateArms(dt, off) {
     var th = player.rotation.y, sn = Math.sin(th), cs = Math.cos(th), hp = ball.hp, st = ball.state, rel = ball.rel;
     var arms = [armL, armR], hands = [handL, handR], k = 1 - Math.exp(-dt * 25);
@@ -443,26 +486,74 @@
         else tgV.copy(fV).lerp(rV, Math.min(1, (rel - 0.5) / 0.5));
       } else tgV.copy(hV);
       if (!handInit) handCur[i].copy(tgV); else handCur[i].lerp(tgV, k);
-      shV.set(sd * 0.4, 2.2, 0); body.localToWorld(shV);
-      /* IK de dos huesos: el codo cae hacia abajo y afuera */
-      axV.copy(handCur[i]).sub(shV);
-      var d = axV.length(), dd = Math.min(LU + LF - 0.002, Math.max(Math.abs(LU - LF) + 0.02, d));
-      dirV.copy(axV).divideScalar(Math.max(d, 1e-4));
-      hcV.copy(shV).addScaledVector(dirV, dd);                         // mano alcanzable
-      var a = (LU * LU - LF * LF + dd * dd) / (2 * dd), h = Math.sqrt(Math.max(0, LU * LU - a * a));
-      poV.set(cs * sd * 0.6 + sn * 0.2, -0.85, -sn * sd * 0.6 + cs * 0.2);
-      poV.addScaledVector(dirV, -poV.dot(dirV)).normalize();
-      elV.copy(shV).addScaledVector(dirV, a).addScaledVector(poV, h);
-      var g = arms[i].userData;
-      g.u.position.copy(shV); g.u.scale.set(1, LU, 1);
-      axV.copy(elV).sub(shV).normalize(); g.u.quaternion.setFromUnitVectors(upV, axV);
-      g.e.position.copy(elV);
-      g.f.position.copy(elV); axV.copy(hcV).sub(elV); g.f.scale.set(1, Math.max(0.05, axV.length()), 1);
-      g.f.quaternion.setFromUnitVectors(upV, axV.normalize());
-      hands[i].position.copy(hcV);
-      hands[i].quaternion.setFromUnitVectors(upV, axV);
+      ik(body, arms[i], hands[i], handCur[i], sd, sn, cs);
     }
     handInit = true;
+  }
+
+  /* ---------- defensor (1x1) ---------- */
+  var dSt = { x: 0, z: 4.5, init: false }, dHandCur = [new THREE.Vector3(), new THREE.Vector3()], dHandInit = false, dTgt = { x: 0, z: 0 };
+  function buildDefender() {
+    dP = player.clone(true);
+    var mp = new Map();
+    dP.traverse(function (o) { if (o.isMesh) { var m = o.material; if (!mp.has(m)) mp.set(m, m.clone()); o.material = mp.get(m); } });
+    function cm(k) { return mp.get(pMats[k]); }
+    cm('jc').color.setHex(0xd9534f); cm('sm').color.setHex(0xb03d3d); cm('trim').color.setHex(0xffffff);
+    cm('shoe').color.setHex(0xffffff); cm('hair').color.setHex(0x2a1d16); cm('band').color.setHex(0xffffff);
+    var cv = document.createElement('canvas'); cv.width = cv.height = 512;
+    var c = cv.getContext('2d'); c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
+    c.font = '800 250px Montserrat, Arial, sans-serif'; c.lineWidth = 15; c.strokeStyle = '#7a2323'; c.fillStyle = '#ffffff';
+    c.strokeText('5', 256, 215); c.fillText('5', 256, 215);
+    var tx = new THREE.CanvasTexture(cv); tx.anisotropy = maxAniso; cm('jm').map = tx; cm('jm').needsUpdate = true;
+    dLegs = dP.children[pIdx.legs]; dBody = dP.children[pIdx.hold].children[0];
+    dP.visible = false; court.add(dP);
+    dArmL = mkArmG(); dArmR = mkArmG();
+    dHandL = new THREE.Mesh(handGeo, pMats.skin); dHandR = new THREE.Mesh(handGeo, pMats.skin);
+    dHandL.scale.set(0.075, 0.095, 0.05); dHandR.scale.set(0.075, 0.095, 0.05);
+    court.add(dArmL, dArmR, dHandL, dHandR);
+    dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = false;
+    dShadow = new THREE.Mesh(pShadow.geometry, pShadow.material); dShadow.rotation.x = -Math.PI / 2; dShadow.scale.setScalar(0.55); dShadow.visible = false; court.add(dShadow);
+  }
+  function defIdeal() {                 // punto donde marcaría un defensor perfecto: entre el tirador y el aro, algo ladeado
+    var sx = ball.spawnX, sz = ball.spawnZ, d = Math.hypot(sx, sz) || 1;
+    dTgt.x = Math.max(-5, Math.min(5, sx - sx / d * 1.45 + 0.85)); dTgt.z = sz - sz / d * 1.45;
+  }
+  function contestFactor() {
+    if (!defOn) return 0;
+    defIdeal();
+    var err = Math.hypot(dSt.x - dTgt.x, dSt.z - dTgt.z);
+    return Math.max(0.12, 1 - err / 1.1);
+  }
+  function updateDefender(dt, time, ps, live) {
+    var show = defOn && ps > 0.98 && live;
+    dP.visible = dShadow.visible = show;
+    dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = show;
+    if (!show) { dSt.init = false; dHandInit = false; return; }
+    defIdeal();
+    if (!dSt.init) { dSt.x = dTgt.x; dSt.z = dTgt.z; dSt.init = true; }
+    var ddx = dTgt.x - dSt.x, ddz = dTgt.z - dSt.z, dl = Math.hypot(ddx, ddz), mv = Math.min(dl, 3.2 * dt);
+    if (dl > 1e-4) { dSt.x += ddx / dl * mv; dSt.z += ddz / dl * mv; }
+    var sx = ball.spawnX, sz = ball.spawnZ;
+    var T = ball.state === 'windup' ? ball.wt : ball.state === 'flying' ? 0.28 + ball.rel : 99;
+    var jump = T < 1.0 ? 1.25 * Math.sin(Math.PI * T / 1.0) : 0;
+    var raise = T < 1.0 ? Math.max(0, Math.min(1, Math.min(T / 0.2, (1.0 - T) / 0.25))) : 0;
+    var px = dSt.x + Math.sin(time * 2.1) * 0.08, pz = dSt.z + Math.cos(time * 1.7) * 0.05;
+    var th = Math.atan2(px - sx, pz - sz), sn = Math.sin(th), cs = Math.cos(th);
+    dP.position.set(px, jump, pz); dP.rotation.y = th; dP.scale.setScalar(1);
+    var crouch = -0.06 + Math.sin(time * 3.2) * 0.02;
+    dBody.position.y = crouch; dLegs.scale.y = 1.14 * (0.98 + crouch) / 0.98;
+    dShadow.position.set(px, 0.012, pz); dShadow.scale.setScalar(0.55 * (1 - jump * 0.6));
+    dP.updateMatrixWorld(true);
+    var k = 1 - Math.exp(-dt * 18);
+    for (var i = 0; i < 2; i++) {
+      var sd = i === 0 ? -1 : 1, bob = Math.sin(time * 4 + i * 2) * 0.05;
+      var ix = px + cs * 0.62 * sd - sn * 0.42, iy = 2.05 + bob + jump, iz = pz - sn * 0.62 * sd - cs * 0.42;
+      var rx = px + cs * 0.2 * sd - sn * 0.12, ry = 3.55 + jump, rz = pz - sn * 0.2 * sd - cs * 0.12;
+      tgV.set(ix + (rx - ix) * raise, iy + (ry - iy) * raise, iz + (rz - iz) * raise);
+      if (!dHandInit) dHandCur[i].copy(tgV); else dHandCur[i].lerp(tgV, k);
+      ik(dBody, i === 0 ? dArmL : dArmR, i === 0 ? dHandL : dHandR, dHandCur[i], sd, sn, cs);
+    }
+    dHandInit = true;
   }
 
   function build() {
@@ -489,6 +580,7 @@
     shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2; shadow.visible = false; court.add(shadow);
     buildPlayer();
+    buildDefender();
 
     /* suelo y líneas */
     var fc = document.createElement('canvas'); fc.width = fc.height = 256;
@@ -497,15 +589,19 @@
     fx.fillStyle = gr; fx.fillRect(0, 0, 256, 256);
     floorMat = new THREE.MeshBasicMaterial({ color: 0xd3e8f2, map: new THREE.CanvasTexture(fc), transparent: true, opacity: 0, depthWrite: false });
     var floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), floorMat);
-    floor.rotation.x = -Math.PI / 2; floor.position.set(0, -0.002, 2); court.add(floor);
+    floor.renderOrder = -2; floor.rotation.x = -Math.PI / 2; floor.position.set(0, -0.002, 2); court.add(floor);
     lineMat = new THREE.MeshBasicMaterial({ color: CYAN, transparent: true, opacity: 0, depthWrite: false });
     function strip(w, d, x, z) {
       var m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lineMat);
-      m.rotation.x = -Math.PI / 2; m.position.set(x, 0.004, z); court.add(m);
+      m.renderOrder = 1; m.rotation.x = -Math.PI / 2; m.position.set(x, 0.004, z); court.add(m);
     }
-    strip(0.08, 6.0, -2.2, 2.3); strip(0.08, 6.0, 2.2, 2.3); strip(4.48, 0.08, 0, 5.3); strip(4.48, 0.08, 0, -0.7);
+    strip(0.08, 6.0, -2.2, 2.3); strip(0.08, 6.0, 2.2, 2.3); strip(4.48, 0.08, 0, 5.3); strip(10.88, 0.08, 0, -0.7);
+    var A3 = Math.asin(4.05 / R3);
+    var arc3 = new THREE.Mesh(new THREE.RingGeometry(R3 - 0.07, R3 + 0.07, 120, 1, Math.PI + 0.6435, Math.PI - 2 * 0.6435), lineMat);
+    arc3.renderOrder = 1; arc3.rotation.x = -Math.PI / 2; arc3.position.set(0, 0.004, 0); court.add(arc3);
+    strip(0.08, 4.75, -5.4, 1.675); strip(0.08, 4.75, 5.4, 1.675);
     var ft = new THREE.Mesh(new THREE.RingGeometry(1.7, 1.78, 64, 1, 0, Math.PI), lineMat);
-    ft.rotation.x = -Math.PI / 2; ft.rotation.z = 0; ft.position.set(0, 0.004, 5.3); court.add(ft);
+    ft.renderOrder = 1; ft.rotation.x = -Math.PI / 2; ft.rotation.z = 0; ft.position.set(0, 0.004, 5.3); court.add(ft);
 
     /* tablero */
     boardG = new THREE.Group(); boardG.position.set(0, H + 0.9, ZB);
@@ -636,7 +732,7 @@
     var t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     logoDist = Math.max(5.9 / (2 * t), 6.5 / (2 * t * camera.aspect));
     var t2 = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    courtZ = Math.max(15, 7 + 2.5 / (t2 * camera.aspect));
+    courtZ = Math.max(15, 7 + 3.0 / (t2 * camera.aspect));
     camera.updateProjectionMatrix();
   }
   new ResizeObserver(fit).observe(stage);
@@ -646,8 +742,8 @@
   var mode = 'logo', u = 0;                    // u: 0 logo -> 1 canasta
   var yaw = 0, pitch = 0, vYaw = 0, vPitch = 0, dragging = false, spin = false, sway = 1;
   var pointers = {}, lastPinch = 0, last = { x: 0, y: 0 };
-  var score = 0, tries = 0;
-  var ball = { p: new THREE.Vector3(), v: new THREE.Vector3(), state: 'ready', scored: false, t: 0, rest: 0, spawn: 0, spawnX: 0, spawnZ: 7, hp: new THREE.Vector3(), pend: new THREE.Vector3(), wt: 0, crouch0: 0, rel: 0 };
+  var score = 0, made = 0, tries = 0, defOn = false;
+  var ball = { p: new THREE.Vector3(), v: new THREE.Vector3(), state: 'ready', scored: false, t: 0, rest: 0, spawn: 0, spawnX: 0, spawnZ: 6, hp: new THREE.Vector3(), pend: new THREE.Vector3(), wt: 0, crouch0: 0, rel: 0 };
   var aim = null, netSway = 0, toastTimer = 0;
 
   function setHold(x, z) {            // el jugador está en (x, z) y sostiene el balón 0.5 por delante
@@ -657,13 +753,13 @@
     ball.p.copy(ball.hp);
   }
   function newBall(first) {
-    if (first) { ball.spawnX = 0; ball.spawnZ = 7; }
+    if (first) { ball.spawnX = 0; ball.spawnZ = 6; }
     setHold(ball.spawnX, ball.spawnZ); ball.v.set(0, 0, 0);
-    ball.state = 'ready'; ball.scored = false; ball.t = 0; ball.rest = 0; ball.spawn = 0; ball.rel = 0; bodyOff = 0;
+    ball.state = 'ready'; ball.scored = false; ball.t = 0; ball.rest = 0; ball.spawn = 0; ball.rel = 0; bodyOff = 0; ball.land = -1; ball.scoreT = 0; ball.pts = 1;
     if (ballMesh) ballMesh.rotation.set(0, 0, 0);
   }
   function hudText() {
-    document.getElementById('hScore').textContent = 'Canastas ' + score + ' / ' + tries;
+    document.getElementById('hScore').textContent = 'Puntos ' + score + ' · ' + made + '/' + tries;
   }
   function showToast() {
     tWho.textContent = whoText();
@@ -724,10 +820,10 @@
     ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height * 2 - 1));
     ray.setFromCamera(ndc, camera);
     if (!ray.ray.intersectPlane(ballPlane, hit)) return;
-    var z = Math.max(2.5, Math.min(7, hit.z)), xl = 4;
+    var z = Math.max(2.5, Math.min(8.2, hit.z)), xl = 4.2;
     if (Math.abs(cYaw) < 0.3) {
       var dist = Math.max(4, camera.position.distanceTo(hit)), halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect * dist;
-      xl = Math.min(4, Math.max(1, halfW - 0.8));
+      xl = Math.min(4.2, Math.max(1, halfW - 0.8));
     }
     var x = Math.max(-xl, Math.min(xl, hit.x));
     setHold(x, z);
@@ -856,14 +952,18 @@
     else if (k === 'ArrowUp') pitch = Math.max(-0.7, pitch - 0.1); else if (k === 'ArrowDown') pitch = Math.min(0.7, pitch + 0.1);
   });
 
-  var bShoot = document.getElementById('bShoot'), bMove = document.getElementById('bMove'), bField = document.getElementById('bField'), bSpin = document.getElementById('bSpin'), bMode = document.getElementById('bMode'), sub = document.getElementById('subtitle');
+  var bDef = document.getElementById('bDef'), bShoot = document.getElementById('bShoot'), bMove = document.getElementById('bMove'), bField = document.getElementById('bField'), bSpin = document.getElementById('bSpin'), bMode = document.getElementById('bMode'), sub = document.getElementById('subtitle');
   bSpin.addEventListener('click', function () { spin = !spin; bSpin.setAttribute('aria-pressed', spin); });
+  bDef.addEventListener('click', function () {
+    defOn = !defOn; bDef.setAttribute('aria-pressed', defOn);
+    document.getElementById('hHint').textContent = defOn ? '1x1: ¡el defensor te marca! Muévete para librarte' : 'Arrastra hacia abajo y suelta para lanzar';
+  });
   bShoot.addEventListener('click', function () { if (mode === 'court') { setMoving(false); setOrbit(false); } });
   bMove.addEventListener('click', function () { if (mode === 'court') setMoving(!moving); });
   bField.addEventListener('click', function () { if (mode === 'court') setOrbit(!orbitOn); });
   bMode.addEventListener('click', function () { setMode(mode === 'logo' ? 'court' : 'logo'); });
   document.getElementById('bReset').addEventListener('click', function () {
-    if (mode === 'court') { score = 0; tries = 0; hudText(); newBall(true); setMoving(false); setOrbit(false); oYaw = oPitch = 0; oZoom = 1; }
+    if (mode === 'court') { score = 0; made = 0; tries = 0; hudText(); newBall(true); setMoving(false); setOrbit(false); oYaw = oPitch = 0; oZoom = 1; }
     else { yaw = pitch = vYaw = vPitch = 0; zoom = 1; spin = false; bSpin.setAttribute('aria-pressed', false); }
   });
   function setMode(m) {
@@ -916,7 +1016,8 @@
       if (hd > lim2 && hd > 1e-4) { var push = 26 * (hd - lim2) * dt; v.x -= p.x / hd * push; v.z -= p.z / hd * push; }
     }
     if (!ball.scored && prevY > H && p.y <= H && Math.hypot(p.x, p.z) < RIM - 0.1) {   // canasta
-      ball.scored = true; score++; netSway = 1; hudText(); showToast();
+      ball.scored = true; ball.scoreT = 0; score += ball.pts; made++; netSway = 1; hudText();
+      document.getElementById('tMain').textContent = ball.pts === 2 ? '¡Triple! +2' : '¡Canasta! +1'; showToast();
       document.getElementById('hHint').textContent = 'Arrastra hacia abajo y suelta para lanzar';
     }
   }
@@ -1010,6 +1111,12 @@
         bodyOff = off;
         if (wt >= 0.28) {                          // suelta el balón
           ball.p.copy(ball.hp); ball.p.y = HOLD_Y + JUMP; ball.v.copy(ball.pend);
+          ball.pts = Math.hypot(ball.spawnX, ball.spawnZ) >= R3 ? 2 : 1;   // como en el 3x3: triple = 2, normal = 1
+          var cf = contestFactor();
+          if (cf > 0) {                                  // defensa encima: el tiro sale peor
+            var ea = (Math.random() * 2 - 1) * 0.1 * cf, es = 1 + (Math.random() * 2 - 1) * 0.07 * cf, vx0 = ball.v.x, vz0 = ball.v.z;
+            ball.v.x = (vx0 * Math.cos(ea) + vz0 * Math.sin(ea)) * es; ball.v.z = (-vx0 * Math.sin(ea) + vz0 * Math.cos(ea)) * es; ball.v.y *= es;
+          }
           ball.state = 'flying'; ball.t = 0; ball.rel = 0; acc = 0; holding = false;
           tries++; hudText();
         }
@@ -1027,13 +1134,16 @@
         var steps = 0;
         while (acc >= 1 / 240 && steps < 30) { physics(1 / 240); acc -= 1 / 240; steps++; }
         ball.t += dt; ball.rel += dt;
-        var q = ball.rel / 0.35; off = q < 1 ? JUMP * (1 - q * q) : 0; bodyOff = off;
+        var q = ball.rel / 0.6; off = q < 1 ? JUMP * (1 - q * q) : 0; bodyOff = off;
         ballMesh.position.copy(ball.p); ballMesh.scale.setScalar(RB);
         ballMesh.rotation.x -= dt * ball.v.length() * 0.35;
         ballMesh.rotation.z += dt * ball.v.x * 0.3;
         var speed = ball.v.length(), onFloor = ball.p.y <= RB + 0.002;
         if (onFloor && speed < 0.7) ball.rest += dt; else ball.rest = 0;
-        if (ball.rest > 0.8 || ball.t > 9 || Math.abs(ball.p.x) > 25 || ball.p.z < -22 || ball.p.z > 30) {
+        if (onFloor && ball.land < 0) ball.land = 0;
+        if (ball.land >= 0) ball.land += dt;
+        if (ball.scored) ball.scoreT += dt;
+        if (ball.rest > 0.2 || ball.land > 0.5 || (ball.scored && ball.scoreT > 0.9) || ball.t > 5 || Math.abs(ball.p.x) > 25 || ball.p.z < -22 || ball.p.z > 30) {
           newBall(false); document.getElementById('hHint').textContent = 'Arrastra hacia abajo y suelta para lanzar';
         }
       }
@@ -1055,22 +1165,23 @@
       armL.visible = armR.visible = handL.visible = handR.visible = armsOn;
       if (armsOn) updateArms(dt, off); else handInit = false;
     } else { armL.visible = armR.visible = handL.visible = handR.visible = false; handInit = false; }
+    updateDefender(dt, time, showP ? seg01(u, 0.8, 1) : 0, live);
     netSway *= Math.pow(0.35, dt);
     if (court.visible) updateNet(time);
 
     /* cámara */
     var ko = 1 - Math.exp(-dt * 10);
     cYaw += (oYaw - cYaw) * ko; cPitch += (oPitch - cPitch) * ko; cZoom += (oZoom - cZoom) * ko;
-    var r0 = Math.hypot(1.1, courtZ), phi0 = Math.atan2(1.1, courtZ);
+    var r0 = Math.hypot(CAMH, courtZ), phi0 = Math.atan2(CAMH, courtZ);
     var phi = Math.max(0.03, Math.min(1.2, phi0 + cPitch)), rr = r0 / cZoom;
     camLogo.set(0, 0.1, logoDist / zoom);
     var ow = Math.min(1, Math.abs(Math.sin(cYaw * 0.5)) * 1.8);          // al girar, el pivote pasa a medio camino entre canasta y jugador
     var needR = (Math.hypot(player.position.x, player.position.z) + 4.6) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
     rr += (Math.max(rr, needR) - rr) * ow;                                // y se aleja lo justo para que quepan los dos
     cPx += (player.position.x * 0.5 * ow - cPx) * ko; cPz += (player.position.z * 0.5 * ow - cPz) * ko;
-    camCourt.set(cPx + Math.sin(cYaw) * Math.cos(phi) * rr, 3.15 + Math.sin(phi) * rr, cPz + Math.cos(cYaw) * Math.cos(phi) * rr);
+    camCourt.set(cPx + Math.sin(cYaw) * Math.cos(phi) * rr, 2.8 + Math.sin(phi) * rr, cPz + Math.cos(cYaw) * Math.cos(phi) * rr);
     camera.position.lerpVectors(camLogo, camCourt, e);
-    tgt.set(cPx * e, 3.15 * e, cPz * e);
+    tgt.set(cPx * e, 2.8 * e, cPz * e);
     camera.lookAt(tgt);
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
@@ -1078,5 +1189,196 @@
 
   try { build(); requestAnimationFrame(frame); }
   catch (err) { loading.hidden = false; loading.textContent = 'No se pudo preparar la escena 3D: ' + (err && err.message ? err.message : err); }
+})();
+</script>
+
+<div class="acad" id="acad" role="dialog" aria-modal="true" aria-label="Academia" hidden>
+  <div class="acad-in">
+    <div class="acad-top"><h2>Academia · Paso cero</h2><button id="acClose" type="button">Cerrar</button></div>
+    <div class="seg" role="group" aria-label="Sección">
+      <button id="acT1" type="button" aria-pressed="true">Regla</button>
+      <button id="acT2" type="button" aria-pressed="false">Jugadas</button>
+      <button id="acT3" type="button" aria-pressed="false">Test</button>
+    </div>
+    <div id="acBody" style="display:flex;flex-direction:column;gap:12px"></div>
+  </div>
+</div>
+<script>
+(function () {
+  var wrap = document.getElementById('acad'), body = document.getElementById('acBody');
+  var tabBtns = [document.getElementById('acT1'), document.getElementById('acT2'), document.getElementById('acT3')];
+  var LAB = { B: 'Bote', G: 'Paso 0 · recoge', '1': 'Paso 1', '2': 'Paso 2', '3': 'Paso 3', S: 'Tiro', D: 'Bote otra vez', R: 'Recibe el pase' };
+  var PLAYS = [
+    { t: 'BBBG12S', a: 'legal', why: 'Recoge el balón (paso 0, no cuenta), da el paso 1 y el 2 y lanza. Dos pasos tras recoger: legal.' },
+    { t: 'BBG123S', a: 'pasos', why: 'Después del paso 0 solo se permiten 2 pasos. El tercero es pasos.' },
+    { t: 'BBG1S', a: 'legal', why: 'Tras recoger, con un paso (o con dos) se puede lanzar. Legal.' },
+    { t: 'BG12DS', a: 'dobles', why: 'Una vez que recoges el balón ya no puedes volver a botar: eso son dobles.' },
+    { t: 'RG12S', a: 'legal', why: 'Al recibir un pase en carrera, el primer apoyo es el paso 0. Luego 1 y 2 y tiro: legal.' },
+    { t: 'RG123S', a: 'pasos', why: 'Paso 0 al recibir, más tres pasos: pasos.' },
+    { t: 'BBBBG12S', a: 'legal', why: 'Los botes antes de recoger no cuentan como pasos: puedes avanzar cuanto quieras botando. Después, 0, 1, 2 y tiro.' }
+  ];
+  var QUIZ = [
+    { q: '¿Qué es el paso cero?', o: ['El apoyo en el que recoges el balón al acabar el bote; no cuenta', 'El primer paso después de recoger el balón', 'Un paso que se da sin balón'], a: 0, why: 'El paso cero es el apoyo en el que el balón queda en tus manos al terminar el bote o al recibir. Es el punto de partida y no se cuenta.' },
+    { q: 'Después del paso cero, ¿cuántos pasos puedes dar antes de lanzar o pasar?', o: ['1', '2', '3'], a: 1, why: 'Dos pasos (el 1 y el 2). Al tercero, pasos.' },
+    { q: '¿Cuenta el paso cero como uno de los dos pasos?', o: ['Sí, es el primero', 'No', 'Solo si caes con los dos pies'], a: 1, why: 'No cuenta. Por eso se dice "cero, uno, dos".' },
+    { q: 'Recoges, das dos pasos y vuelves a botar. ¿Qué pita el árbitro?', o: ['Nada, es legal', 'Pasos', 'Dobles'], a: 2, why: 'Tras recoger el balón no puedes volver a botar: dobles.' },
+    { q: 'Antes de recoger el balón, ¿puedes avanzar botando?', o: ['Sí, mientras sigas botando', 'No, solo dos pasos', 'Solo tres pasos'], a: 0, why: 'Mientras botas no hay límite de pasos; el límite empieza al recoger.' }
+  ];
+  var cur = null;
+  function css(n) { return (getComputedStyle(document.documentElement).getPropertyValue(n) || '').trim() || '#888'; }
+  function stopAnim() { if (cur) { cur.stop(); cur = null; } }
+
+  function startAnim(cv, tokens, o) {
+    o = o || {};
+    var dpr = Math.min(2, window.devicePixelRatio || 1), W = 320, H = 380, ctx = cv.getContext('2d');
+    cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var DUR = 0.7, MOVE = 'BG123D', n = tokens.length, mv = 0, i;
+    for (i = 0; i < n; i++) if (MOVE.indexOf(tokens[i]) >= 0) mv++;
+    var yEnd = 122, SP = Math.min(38, (H - 40 - yEnd) / mv), y0 = yEnd + SP * mv;
+    var ys = [], yy = y0;                                  // y al final de cada ficha
+    for (i = 0; i < n; i++) { if (MOVE.indexOf(tokens[i]) >= 0) yy -= SP; ys.push(yy); }
+    var t0 = performance.now(), raf = 0, stopped = false, lastTok = -1, ended = false, TOTAL = n * DUR + 1.5;
+    function ease(p) { return p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; }
+    function draw(t) {
+      var fg = css('--fg'), line = css('--line'), pn = css('--panel'), ac = css('--accent'), W2 = W / 2;
+      ctx.clearRect(0, 0, W, H); ctx.fillStyle = pn; ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = line; ctx.lineWidth = 2; ctx.strokeRect(W2 - 52, 30, 104, 120);      // zona
+      ctx.beginPath(); ctx.arc(W2, 150, 40, 0, Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.arc(W2, 44, 150, 0.55, Math.PI - 0.55); ctx.stroke();           // triple (decorativo)
+      ctx.strokeStyle = fg; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(W2 - 28, 26); ctx.lineTo(W2 + 28, 26); ctx.stroke();
+      ctx.strokeStyle = '#e8742a'; ctx.beginPath(); ctx.arc(W2, 40, 9, 0, Math.PI * 2); ctx.stroke();
+      var k = 0, pos = y0;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '800 12px system-ui, sans-serif';
+      for (i = 0; i < n; i++) {
+        var tk = tokens[i], isMv = MOVE.indexOf(tk) >= 0, st = i * DUR;
+        if (isMv) {
+          var p = Math.max(0, Math.min(1, (t - st) / (DUR * 0.7))), prev = i === 0 ? y0 : (function () { var j = i - 1; while (j >= 0 && MOVE.indexOf(tokens[j]) < 0) j--; return j < 0 ? y0 : ys[j]; })();
+          if (t >= st) pos = prev + (ys[i] - prev) * ease(p);
+          if (p >= 1) {                                   // huella
+            var fx = W2 + (k % 2 ? 11 : -11), fy = ys[i] + 4;
+            ctx.beginPath(); ctx.ellipse(fx, fy, tk === 'B' || tk === 'D' ? 5 : 9, tk === 'B' || tk === 'D' ? 8 : 11, 0, 0, Math.PI * 2);
+            ctx.fillStyle = tk === 'G' ? '#f59e0b' : tk === '3' ? '#d9534f' : (tk === 'B' || tk === 'D') ? line : ac; ctx.fill();
+            if (tk === 'G' || tk === '1' || tk === '2' || tk === '3') { ctx.fillStyle = tk === 'G' ? '#1b1200' : '#fff'; ctx.fillText(tk === 'G' ? '0' : tk, fx, fy); }
+          }
+          k++;
+        }
+      }
+      if (t >= n * DUR) { var lm = n - 1; pos = ys[lm]; }
+      var px = W2, py = pos;
+      ctx.fillStyle = ac; ctx.beginPath(); ctx.arc(px, py - 4, 13, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f1c9a5'; ctx.beginPath(); ctx.arc(px, py - 22, 7, 0, Math.PI * 2); ctx.fill();
+      /* balón */
+      var idx = Math.min(n - 1, Math.floor(t / DUR)), tkc = tokens[idx], loc = (t - idx * DUR) / DUR, hasR = tokens.indexOf('R'), bx, by, show = true, held = false;
+      var firstG = tokens.indexOf('G'), sIdx = tokens.indexOf('S'), gone = sIdx >= 0 && t >= sIdx * DUR;
+      if (t >= n * DUR) { tkc = tokens[n - 1]; loc = 1; }
+      var bounceNow = (idx < firstG || (tokens.charAt ? false : false));
+      var phase;                                                // 0 bote, 1 en manos, 2 vuelo
+      if (firstG >= 0 && idx >= firstG) phase = 1; else phase = 0;
+      for (i = 0; i < n; i++) if (tokens[i] === 'D' && t >= i * DUR) phase = (i === idx || t < (i + 1) * DUR) ? 0 : phase;
+      if (idx > 0 && tokens.indexOf('D') >= 0 && idx >= tokens.indexOf('D')) phase = 0;
+      if (gone) phase = 2;
+      if (hasR >= 0 && t < hasR * DUR) show = false;
+      if (hasR >= 0 && idx === hasR) { var q = Math.min(1, loc / 0.8); bx = W - 24 + (px - (W - 24)) * q; by = py - 70 + (py - 16 - (py - 70)) * q; }
+      else if (phase === 0) { var sb = Math.abs(Math.sin(t * 8.5)); bx = px + 18; by = py + 4 - 26 * sb; ctx.fillStyle = 'rgba(0,0,0,.15)'; ctx.beginPath(); ctx.ellipse(bx, py + 6, 6, 2.5, 0, 0, Math.PI * 2); ctx.fill(); }
+      else if (phase === 1) { bx = px + 4; by = py - 18; held = true; }
+      else { var f = Math.min(1, (t - sIdx * DUR) / (DUR * 1.1)); bx = px + (W2 - px) * f; by = py - 18 + (40 - (py - 18)) * f - Math.sin(Math.PI * f) * 70; }
+      if (show && bx !== undefined) {
+        ctx.fillStyle = '#e8742a'; ctx.beginPath(); ctx.arc(bx, by, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#7a3a12'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(bx - 7, by); ctx.lineTo(bx + 7, by); ctx.stroke();
+      }
+      if (o.banner && t >= n * DUR) {
+        ctx.font = '800 16px system-ui, sans-serif'; ctx.fillStyle = css('--fg'); ctx.fillText(o.banner, W2, H - 18);
+      }
+    }
+    function frame(now) {
+      if (stopped) return;
+      var t = (now - t0) / 1000, idx = Math.min(n - 1, Math.floor(t / DUR));
+      if (t >= 0 && idx !== lastTok && t < n * DUR) { lastTok = idx; if (o.onTok) o.onTok(idx, tokens[idx]); }
+      draw(Math.min(t, TOTAL));
+      if (t >= TOTAL) {
+        if (o.loop) { t0 = now; lastTok = -1; } else { if (!ended) { ended = true; if (o.onEnd) o.onEnd(); } return; }
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return { stop: function () { stopped = true; cancelAnimationFrame(raf); } };
+  }
+  function chipHtml(list) { return list.map(function (c) { return '<span class="' + (c.k === 'G' ? 'z' : c.k === '3' ? 'bad' : '') + '">' + c.l + '</span>'; }).join(''); }
+  function tokList(tokens, upto) { var r = []; for (var i = 0; i <= upto; i++) r.push({ k: tokens.charAt(i), l: LAB[tokens.charAt(i)] }); return r; }
+
+  function viewRule() {
+    stopAnim();
+    body.innerHTML = '<canvas id="acCv"></canvas><div class="acchips" id="acChips"></div>' +
+      '<ol class="acs"><li><b>Mientras botas</b> puedes avanzar sin límite de pasos.</li>' +
+      '<li><b>Paso cero:</b> es el apoyo en el que recoges el balón con las manos al acabar el bote (o al recibir un pase en carrera). <b>No cuenta</b> como paso.</li>' +
+      '<li>Después puedes dar <b>dos pasos</b> (el 1 y el 2) y debes lanzar o pasar. Un tercer paso es <b>pasos</b>.</li>' +
+      '<li>Una vez recogido el balón <b>no puedes volver a botar</b>: serían <b>dobles</b>.</li></ol>' +
+      '<p class="acn">Resumen: bote → recoge (0) → 1 → 2 → tiro. Los criterios pueden variar según la categoría y el árbitro; pregunta siempre a tu entrenador.</p>';
+    var ch = document.getElementById('acChips'), tk = PLAYS[0].t;
+    cur = startAnim(document.getElementById('acCv'), tk, { loop: true, banner: 'Legal ✓ · cero, uno, dos', onTok: function (i) { ch.innerHTML = chipHtml(tokList(tk, i)); } });
+  }
+
+  var pi = 0, pScore = 0, pDone = false;
+  function viewPlays(reset) {
+    stopAnim();
+    if (reset) { pi = 0; pScore = 0; }
+    if (pi >= PLAYS.length) {
+      var best = 0; try { best = Math.max(+localStorage.getItem('bb_acad_p') || 0, pScore); localStorage.setItem('bb_acad_p', best); } catch (e) {}
+      body.innerHTML = '<div class="acq">¡Terminado! Aciertos: ' + pScore + ' / ' + PLAYS.length + '</div><p class="acn">Mejor marca: ' + best + ' / ' + PLAYS.length + '</p><div class="acopts"><button id="acAgain" type="button" class="primary">Repetir las jugadas</button></div>';
+      document.getElementById('acAgain').onclick = function () { viewPlays(true); };
+      return;
+    }
+    var pl = PLAYS[pi]; pDone = false;
+    body.innerHTML = '<div class="acn">Jugada ' + (pi + 1) + ' de ' + PLAYS.length + ' · Aciertos ' + pScore + '</div><canvas id="acCv"></canvas><div class="acchips" id="acChips"></div>' +
+      '<div class="acq">¿Qué pita el árbitro?</div><div class="acopts"><button type="button" data-a="legal">Legal</button><button type="button" data-a="pasos">Pasos</button><button type="button" data-a="dobles">Dobles</button><button type="button" id="acRep">Ver otra vez</button></div><div id="acFb"></div>';
+    var ch = document.getElementById('acChips'), cv = document.getElementById('acCv');
+    function play() { stopAnim(); ch.innerHTML = ''; cur = startAnim(cv, pl.t, { onTok: function (i) { ch.innerHTML = chipHtml(tokList(pl.t, i)); } }); }
+    play();
+    document.getElementById('acRep').onclick = play;
+    Array.prototype.forEach.call(body.querySelectorAll('[data-a]'), function (b) {
+      b.onclick = function () {
+        if (pDone) return; pDone = true;
+        var ok = b.getAttribute('data-a') === pl.a; if (ok) pScore++;
+        var nm = { legal: 'Legal', pasos: 'Pasos', dobles: 'Dobles' }[pl.a];
+        document.getElementById('acFb').innerHTML = '<div class="acfb ' + (ok ? 'ok' : 'no') + '"><b>' + (ok ? '¡Correcto!' : 'No: era ' + nm + '.') + '</b> ' + pl.why + '</div><div class="acopts"><button type="button" id="acNext" class="primary">' + (pi + 1 < PLAYS.length ? 'Siguiente jugada' : 'Ver resultado') + '</button></div>';
+        document.getElementById('acNext').onclick = function () { pi++; viewPlays(); };
+      };
+    });
+  }
+
+  var qi = 0, qScore = 0, qDone = false;
+  function viewQuiz(reset) {
+    stopAnim();
+    if (reset) { qi = 0; qScore = 0; }
+    if (qi >= QUIZ.length) {
+      var best = 0; try { best = Math.max(+localStorage.getItem('bb_acad_q') || 0, qScore); localStorage.setItem('bb_acad_q', best); } catch (e) {}
+      body.innerHTML = '<div class="acq">Test terminado: ' + qScore + ' / ' + QUIZ.length + '</div><p class="acn">Mejor marca: ' + best + ' / ' + QUIZ.length + '</p><div class="acopts"><button id="acAgain" type="button" class="primary">Repetir el test</button></div>';
+      document.getElementById('acAgain').onclick = function () { viewQuiz(true); };
+      return;
+    }
+    var q = QUIZ[qi]; qDone = false;
+    body.innerHTML = '<div class="acn">Pregunta ' + (qi + 1) + ' de ' + QUIZ.length + ' · Aciertos ' + qScore + '</div><div class="acq">' + q.q + '</div><div class="acopts v">' +
+      q.o.map(function (t, i) { return '<button type="button" data-i="' + i + '">' + t + '</button>'; }).join('') + '</div><div id="acFb"></div>';
+    Array.prototype.forEach.call(body.querySelectorAll('[data-i]'), function (b) {
+      b.onclick = function () {
+        if (qDone) return; qDone = true;
+        var ok = +b.getAttribute('data-i') === q.a; if (ok) qScore++;
+        document.getElementById('acFb').innerHTML = '<div class="acfb ' + (ok ? 'ok' : 'no') + '"><b>' + (ok ? '¡Correcto!' : 'Respuesta: ' + q.o[q.a]) + '</b> ' + q.why + '</div><div class="acopts"><button type="button" id="acNext" class="primary">' + (qi + 1 < QUIZ.length ? 'Siguiente' : 'Ver resultado') + '</button></div>';
+        document.getElementById('acNext').onclick = function () { qi++; viewQuiz(); };
+      };
+    });
+  }
+
+  function tab(n) {
+    tabBtns.forEach(function (b, i) { b.setAttribute('aria-pressed', i === n); });
+    if (n === 0) viewRule(); else if (n === 1) viewPlays(true); else viewQuiz(true);
+    wrap.scrollTop = 0;
+  }
+  tabBtns.forEach(function (b, i) { b.addEventListener('click', function () { tab(i); }); });
+  function openA() { wrap.hidden = false; document.documentElement.style.overflow = 'hidden'; tab(0); document.getElementById('acClose').focus(); }
+  function closeA() { stopAnim(); wrap.hidden = true; document.documentElement.style.overflow = ''; document.getElementById('bAcad').focus(); }
+  document.getElementById('bAcad').addEventListener('click', openA);
+  document.getElementById('acClose').addEventListener('click', closeA);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !wrap.hidden) closeA(); });
 })();
 </script>
