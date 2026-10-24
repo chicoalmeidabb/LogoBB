@@ -1,3 +1,7 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Baloncesto Badajoz 3D</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#1eabd1">
@@ -115,6 +119,19 @@
   .sheet ol { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; font-size: .88rem; line-height: 1.4; }
   .sheet .note { margin: 0; font-size: .78rem; color: var(--muted); line-height: 1.4; }
   .sheet button { align-self: flex-start; }
+  @media (pointer: coarse), (max-width: 640px) {
+    button { font-size: .92rem; padding: 9px 14px; }
+    .seg button { font-size: .92rem; padding: 8px 13px; }
+    .seg { gap: 5px; }
+    .player, .controls { gap: 8px 6px; }
+    .controls { padding-bottom: 24px; }
+    .player input { font-size: 16px; padding: 8px 14px; }
+    #iNum { width: 92px; }
+    #iName { flex: 1 1 150px; max-width: 230px; }
+    .hud span { font-size: .88rem; padding: 6px 14px; }
+    header h1 { font-size: .9rem; }
+  }
+  @media (max-width: 640px) { header p { display: none; } }
   @media (prefers-reduced-motion: reduce) { .toast.show { animation: none; opacity: 1; } }
 </style>
 
@@ -341,11 +358,11 @@
       });
     });
     /* tronco: capa de piel (hombros) + camiseta sin mangas */
-    var PJ = [[1.30, 0.305, 0.185], [1.55, 0.26, 0.162], [1.85, 0.33, 0.2], [2.08, 0.34, 0.205], [2.24, 0.255, 0.17], [2.34, 0.13, 0.1]];
-    var PS = [[1.30, 0.29, 0.175], [1.55, 0.245, 0.152], [1.85, 0.315, 0.19], [2.08, 0.325, 0.195], [2.24, 0.30, 0.17], [2.36, 0.14, 0.1]];
+    var PJ = [[1.30, 0.28, 0.175], [1.55, 0.26, 0.162], [1.85, 0.33, 0.2], [2.08, 0.34, 0.205], [2.24, 0.255, 0.17], [2.34, 0.13, 0.1]];
+    var PS = [[1.30, 0.268, 0.165], [1.55, 0.245, 0.152], [1.85, 0.315, 0.19], [2.08, 0.325, 0.195], [2.24, 0.30, 0.17], [2.36, 0.14, 0.1]];
     body.add(shaped(PS, skin, 18));
     var torso = shaped(PJ, jc, 18); body.add(torso);
-    var hem = shaped([[1.29, 0.309, 0.189], [1.33, 0.309, 0.189]], trimM, 1); body.add(hem);
+    var hem = shaped([[1.29, 0.284, 0.179], [1.33, 0.284, 0.179]], trimM, 1); body.add(hem);
     var collar = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.016, 8, 28), trimM);
     collar.rotation.x = Math.PI / 2; collar.scale.y = 0.8; collar.position.set(0, 2.335, 0); body.add(collar);
     [-1, 1].forEach(function (sd) {
@@ -612,7 +629,7 @@
     var t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     logoDist = Math.max(5.9 / (2 * t), 6.5 / (2 * t * camera.aspect));
     var t2 = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    courtZ = Math.max(16, 7 + 2.7 / (t2 * camera.aspect));
+    courtZ = Math.max(15, 7 + 2.5 / (t2 * camera.aspect));
     camera.updateProjectionMatrix();
   }
   new ResizeObserver(fit).observe(stage);
@@ -1038,9 +1055,9 @@
     var r0 = Math.hypot(1.1, courtZ), phi0 = Math.atan2(1.1, courtZ);
     var phi = Math.max(0.03, Math.min(1.2, phi0 + cPitch)), rr = r0 / cZoom;
     camLogo.set(0, 0.1, logoDist / zoom);
-    camCourt.set(Math.sin(cYaw) * Math.cos(phi) * rr, 3.3 + Math.sin(phi) * rr, Math.cos(cYaw) * Math.cos(phi) * rr);
+    camCourt.set(Math.sin(cYaw) * Math.cos(phi) * rr, 3.15 + Math.sin(phi) * rr, Math.cos(cYaw) * Math.cos(phi) * rr);
     camera.position.lerpVectors(camLogo, camCourt, e);
-    tgt.set(0, 3.3 * e, 0);
+    tgt.set(0, 3.15 * e, 0);
     camera.lookAt(tgt);
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
