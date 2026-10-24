@@ -119,17 +119,22 @@
   .sheet ol { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; font-size: .88rem; line-height: 1.4; }
   .sheet .note { margin: 0; font-size: .78rem; color: var(--muted); line-height: 1.4; }
   .sheet button { align-self: flex-start; }
+  .br { display: none; }
   @media (pointer: coarse), (max-width: 640px) {
-    button { font-size: .92rem; padding: 9px 14px; }
-    .seg button { font-size: .92rem; padding: 8px 13px; }
-    .seg { gap: 5px; }
-    .player, .controls { gap: 8px 6px; }
-    .controls { padding-bottom: 24px; }
-    .player input { font-size: 16px; padding: 8px 14px; }
-    #iNum { width: 92px; }
+    .br { display: block; flex-basis: 100%; height: 0; }
+    button { font-size: .75rem; padding: 7px 8px; }
+    .controls button { font-size: .73rem; padding: 7px 7px; }
+    .controls { gap: 6px 4px; }
+    .seg button { font-size: .8rem; padding: 7px 11px; }
+    .seg { gap: 4px; }
+    .player, .controls { gap: 6px 5px; }
+    .controls { padding-bottom: 16px; }
+    .app { gap: 6px; }
+    .player input { font-size: 16px; padding: 5px 12px; }
+    #iNum { width: 80px; }
     #iName { flex: 1 1 150px; max-width: 230px; }
-    .hud span { font-size: .88rem; padding: 6px 14px; }
-    header h1 { font-size: .9rem; }
+    .hud span { font-size: .84rem; padding: 5px 12px; }
+    header h1 { font-size: .85rem; }
   }
   @media (max-width: 640px) { header p { display: none; } }
   @media (prefers-reduced-motion: reduce) { .toast.show { animation: none; opacity: 1; } }
@@ -173,11 +178,13 @@
       <button id="bKitA" type="button" aria-pressed="true">Azul</button>
       <button id="bKitN" type="button" aria-pressed="false">Negra</button>
     </div>
+    <i class="br"></i>
     <input id="iNum" type="text" inputmode="numeric" maxlength="2" placeholder="Dorsal" autocomplete="off" aria-label="Tu dorsal">
     <input id="iName" type="text" maxlength="14" placeholder="Tu nombre" autocomplete="off" aria-label="Tu nombre">
   </div>
   <div class="controls">
     <button id="bSpin" type="button" aria-pressed="false">Giro continuo</button>
+    <button id="bShoot" type="button" aria-pressed="true" hidden>Tirar</button>
     <button id="bMove" type="button" aria-pressed="false" hidden>Mover jugador</button>
     <button id="bField" type="button" aria-pressed="false" hidden>Mover campo</button>
     <button id="bMode" type="button" class="primary">Convertir en canasta</button>
@@ -710,7 +717,7 @@
   function whoText() { return (who.num ? '#' + who.num : '') + (who.num && who.name ? ' · ' : '') + who.name; }
   /* ---------- mover jugador y mover campo ---------- */
   var moving = false, moveDrag = false;
-  var orbitOn = false, oYaw = 0, oPitch = 0, oZoom = 1, cYaw = 0, cPitch = 0, cZoom = 1;
+  var cPx = 0, cPz = 0, orbitOn = false, oYaw = 0, oPitch = 0, oZoom = 1, cYaw = 0, cPitch = 0, cZoom = 1;
   var ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), ballPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
   function moveTo(e) {
     var r = canvas.getBoundingClientRect();
@@ -726,6 +733,7 @@
     setHold(x, z);
   }
   function updateHint() {
+    bShoot.setAttribute('aria-pressed', !moving && !orbitOn);
     document.getElementById('hHint').textContent = moving ? 'Arrastra para colocar al jugador'
       : orbitOn ? 'Arrastra para girar el campo · pellizca para acercar' : 'Arrastra hacia abajo y suelta para lanzar';
   }
@@ -848,8 +856,9 @@
     else if (k === 'ArrowUp') pitch = Math.max(-0.7, pitch - 0.1); else if (k === 'ArrowDown') pitch = Math.min(0.7, pitch + 0.1);
   });
 
-  var bMove = document.getElementById('bMove'), bField = document.getElementById('bField'), bSpin = document.getElementById('bSpin'), bMode = document.getElementById('bMode'), sub = document.getElementById('subtitle');
+  var bShoot = document.getElementById('bShoot'), bMove = document.getElementById('bMove'), bField = document.getElementById('bField'), bSpin = document.getElementById('bSpin'), bMode = document.getElementById('bMode'), sub = document.getElementById('subtitle');
   bSpin.addEventListener('click', function () { spin = !spin; bSpin.setAttribute('aria-pressed', spin); });
+  bShoot.addEventListener('click', function () { if (mode === 'court') { setMoving(false); setOrbit(false); } });
   bMove.addEventListener('click', function () { if (mode === 'court') setMoving(!moving); });
   bField.addEventListener('click', function () { if (mode === 'court') setOrbit(!orbitOn); });
   bMode.addEventListener('click', function () { setMode(mode === 'logo' ? 'court' : 'logo'); });
@@ -861,11 +870,11 @@
     mode = m; aim = null; aimDots && (aimDots.visible = false);
     if (m === 'court') {
       newBall(true); spin = false; bSpin.setAttribute('aria-pressed', false); setMoving(false); setOrbit(false); oYaw = oPitch = 0; oZoom = 1;
-      bMode.textContent = 'Volver al logo'; bMode.classList.remove('primary'); bSpin.hidden = true; bMove.hidden = false; bField.hidden = false; playerBox.hidden = false;
+      bMode.textContent = 'Ver logo'; bMode.classList.remove('primary'); bSpin.hidden = true; bShoot.hidden = false; bMove.hidden = false; bField.hidden = false; playerBox.hidden = false;
       sub.textContent = 'Arrastra hacia abajo para dar fuerza y a los lados para apuntar. Suelta para lanzar.';
       hud.hidden = false; hudText();
     } else {
-      setMoving(false); setOrbit(false); oYaw = oPitch = 0; oZoom = 1; bMode.textContent = 'Convertir en canasta'; bMode.classList.add('primary'); bSpin.hidden = false; bMove.hidden = true; bField.hidden = true; playerBox.hidden = true;
+      setMoving(false); setOrbit(false); oYaw = oPitch = 0; oZoom = 1; bMode.textContent = 'Convertir en canasta'; bMode.classList.add('primary'); bSpin.hidden = false; bShoot.hidden = true; bMove.hidden = true; bField.hidden = true; playerBox.hidden = true;
       sub.textContent = 'Arrastra para girar · pellizca o usa la rueda para acercar';
       hud.hidden = true;
     }
@@ -1055,9 +1064,13 @@
     var r0 = Math.hypot(1.1, courtZ), phi0 = Math.atan2(1.1, courtZ);
     var phi = Math.max(0.03, Math.min(1.2, phi0 + cPitch)), rr = r0 / cZoom;
     camLogo.set(0, 0.1, logoDist / zoom);
-    camCourt.set(Math.sin(cYaw) * Math.cos(phi) * rr, 3.15 + Math.sin(phi) * rr, Math.cos(cYaw) * Math.cos(phi) * rr);
+    var ow = Math.min(1, Math.abs(Math.sin(cYaw * 0.5)) * 1.8);          // al girar, el pivote pasa a medio camino entre canasta y jugador
+    var needR = (Math.hypot(player.position.x, player.position.z) + 4.6) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
+    rr += (Math.max(rr, needR) - rr) * ow;                                // y se aleja lo justo para que quepan los dos
+    cPx += (player.position.x * 0.5 * ow - cPx) * ko; cPz += (player.position.z * 0.5 * ow - cPz) * ko;
+    camCourt.set(cPx + Math.sin(cYaw) * Math.cos(phi) * rr, 3.15 + Math.sin(phi) * rr, cPz + Math.cos(cYaw) * Math.cos(phi) * rr);
     camera.position.lerpVectors(camLogo, camCourt, e);
-    tgt.set(0, 3.15 * e, 0);
+    tgt.set(cPx * e, 3.15 * e, cPz * e);
     camera.lookAt(tgt);
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
