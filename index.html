@@ -101,7 +101,7 @@
   .player { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
   .seg { display: inline-flex; gap: 6px; }
   .seg[hidden] { display: none; }
-  #acB0, #acT4, #acT5 { font-weight: 700; }
+  #acB0, #acT4, #acT5, #acT6, #acT7 { font-weight: 700; }
   .seg button { padding: 8px 13px; font-size: .8rem; }
   .player input {
     font: 600 16px var(--font-ui); color: var(--fg); background: var(--panel);
@@ -244,7 +244,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v3.7',  CAMH = 2.9, R3 = 6.75, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v3.9',  CAMH = 2.9, R3 = 6.75, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -591,6 +591,9 @@
   function updateAcad(dt, time, ps) {
     var tk = acad.tokens, n = tk.length, i;
     if (acad.pending) { var cb = acad.pending; acad.pending = null; cb(); }
+    if (acad.scr) { updateScr(dt, time, ps); return; }
+    if (acad.two) { updateTwo(dt, time, ps); return; }
+    if (acad.twoShown) hideTwo();
     if (acad.piv) { updatePiv(dt, time, ps); return; }
     if (acad.pivShown) hidePiv();
     if (acad.pass) { updatePass(dt, time, ps); return; }
@@ -915,6 +918,263 @@
     if (vis) { pBall.set(bx, by, bz); ik(body, armL, handL, handCur[0], -1, sn, cs, pBall, 0, 0.3); ik(body, armR, handR, handCur[1], 1, sn, cs, pBall, 0, 0.3); }
     handInit = false;
   }
+  /* ---------- 2 para 2: pasa y corta (2 atacantes y 2 defensores) ---------- */
+  var TWO_T = 7.6, TWO = null;
+  function mkLabel(txt, bg) {
+    var cv = document.createElement('canvas'); cv.width = cv.height = 128; var c = cv.getContext('2d');
+    c.fillStyle = bg; c.beginPath(); c.arc(64, 64, 58, 0, 6.2832); c.fill(); c.lineWidth = 6; c.strokeStyle = '#fff'; c.stroke();
+    c.fillStyle = '#fff'; c.font = '800 66px Montserrat, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(txt, 64, 70);
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true }));
+    sp.scale.set(0.8, 0.8, 1); sp.renderOrder = 9; sp.visible = false; court.add(sp); return sp;
+  }
+  function cloneRig(red, num, hairHex) {
+    var d = player.clone(true), mp = new Map();
+    d.traverse(function (o) { if (o.isMesh) { var m = o.material; if (!mp.has(m)) mp.set(m, m.clone()); o.material = mp.get(m); } });
+    function cm(k) { return mp.get(pMats[k]); }
+    if (red) { cm('jc').color.setHex(0xd9534f); cm('sm').color.setHex(0xb03d3d); cm('trim').color.setHex(0xffffff); cm('shoe').color.setHex(0xffffff); cm('band').color.setHex(0xffffff); }
+    cm('hair').color.setHex(hairHex);
+    var cv = document.createElement('canvas'); cv.width = cv.height = 512; var c = cv.getContext('2d');
+    c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round'; c.font = '800 250px Montserrat, Arial, sans-serif'; c.lineWidth = 15;
+    c.strokeStyle = red ? '#7a2323' : '#0b4f6c'; c.fillStyle = '#ffffff'; c.strokeText(num, 256, 215); c.fillText(num, 256, 215);
+    var tx = new THREE.CanvasTexture(cv); tx.anisotropy = maxAniso; cm('jm').map = tx; cm('jm').needsUpdate = true;
+    var dl = d.children[pIdx.legs], db = d.children[pIdx.hold].children[0], lg = [], kn = [], i, ix;
+    for (i = 0; i < 2; i++) { lg[i] = dl.children[legs.children.indexOf(legG[i])]; ix = legG[i].children.indexOf(legG[i].userData.knee); kn[i] = lg[i].children[ix]; }
+    var aL = mkArmG(), aR = mkArmG(), hL = mkHandG(-1), hR = mkHandG(1);
+    d.visible = false; court.add(d, aL, aR, hL, hR); aL.visible = aR.visible = hL.visible = hR.visible = false;
+    var sh = new THREE.Mesh(pShadow.geometry, pShadow.material); sh.rotation.x = -Math.PI / 2; sh.visible = false; court.add(sh);
+    return { root: d, sh: sh, body: db, legs: dl, lg: lg, kn: kn, aL: aL, aR: aR, hL: hL, hR: hR };
+  }
+  function twoInit() {
+    if (TWO) return TWO;
+    var G = getRigs(), a1 = { root: player, sh: pShadow, body: body, legs: legs, lg: legG, kn: [legG[0].userData.knee, legG[1].userData.knee], aL: armL, aR: armR, hL: handL, hR: handR };
+    TWO = { a1: a1, d1: G[1], a2: cloneRig(false, '10', 0x2a1d16), d2: cloneRig(true, '7', 0x4a3220) };
+    TWO.labs = [mkLabel('1', '#1b9ad6'), mkLabel('2', '#1b9ad6')]; TWO.a1.lab = TWO.labs[0]; TWO.a2.lab = TWO.labs[1]; TWO.d1.lab = mkLabel('X', '#d9534f'); TWO.d2.lab = mkLabel('X', '#d9534f');
+    ['a1', 'a2', 'd1', 'd2'].forEach(function (k) { var R = TWO[k]; R.h = [new THREE.Vector3(), new THREE.Vector3()]; R.hi = false; R.ph = 0; R.yaw = 0; R.px = 0; R.pz = 0; R.spd = 0; R.init = false; });
+    return TWO;
+  }
+  function hideTwo() {
+    acad.twoShown = false;
+    if (TWO && TWO.rings) TWO.rings.forEach(function (m) { m.visible = false; });
+    if (TWO) ['a2', 'd2', 'd1'].forEach(function (k) { var R = TWO[k]; R.root.visible = R.sh.visible = R.aL.visible = R.aR.visible = R.hL.visible = R.hR.visible = false; });
+    if (TWO) { ['a1', 'a2', 'd1', 'd2'].forEach(function (k) { TWO[k].lab.visible = false; }); }
+    if (acad.passShown) hidePass(); else { dP.visible = dShadow.visible = false; dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = false; }
+    hidePiv();
+  }
+  var tpV = new THREE.Vector3(), tpV2 = new THREE.Vector3();
+  function tw(R, lx, ly, lz, out) { var sn = Math.sin(R.yaw), cs = Math.cos(R.yaw); return out.set(R.root.position.x + lx * cs + lz * sn, ly + R.root.position.y, R.root.position.z - lx * sn + lz * cs); }
+  /* posiciona a un jugador: x,z, mira a (fx,fz), modo de brazos y postura */
+  function twoActor(R, dt, time, ps, x, z, fx, fz, mode, o) {
+    o = o || {};
+    var dx = x - R.px, dz = z - R.pz, sp0 = R.init && dt > 1e-4 ? Math.hypot(dx, dz) / dt : 0; R.px = x; R.pz = z;
+    if (sp0 > 9) sp0 = 0;
+    R.spd += (sp0 - R.spd) * Math.min(1, dt * 10);
+    var sp = Math.min(1, R.spd / 2.6), yt = Math.atan2(-(fx - x), -(fz - z));
+    if (!R.init) R.yaw = yt;
+    var df = yt - R.yaw; df = Math.atan2(Math.sin(df), Math.cos(df)); R.yaw += df * (1 - Math.exp(-dt * 11));
+    R.ph += R.spd * dt * 4.0;
+    var s = Math.sin(R.ph), c = Math.cos(R.ph), stK = (o.stance === undefined ? 0.2 : o.stance) * (1 - sp), jk = o.jump || 0, jf = Math.min(1, jk);
+    var crouch = -0.04 - 0.11 * stK - 0.05 * sp * Math.abs(c) - 0.1 * (o.crouch || 0);
+    R.root.visible = R.sh.visible = true; R.root.scale.setScalar(Math.max(0.001, ps));
+    R.root.position.set(x, jk, z); R.root.rotation.y = R.yaw;
+    R.body.position.y = crouch; R.legs.scale.y = 1.14 * (0.98 + crouch) / 0.98; R.body.rotation.x = -0.12 * sp; R.body.rotation.y = 0;
+    var i;
+    for (i = 0; i < 2; i++) {
+      var ci = i === 0 ? c : -c, si = i === 0 ? s : -s;
+      R.lg[i].position.x = (i ? 1 : -1) * (0.145 + 0.12 * stK); R.lg[i].position.y = 0.98;
+      R.lg[i].rotation.x = 0.8 * sp * si + 0.2 * stK; R.lg[i].rotation.z = 0;
+      R.kn[i].rotation.x = -(0.15 + 0.5 * stK + 1.0 * sp * Math.max(0, ci));
+    }
+    if (jf > 0) { R.lg[1].rotation.x = 1.6 * jf + R.lg[1].rotation.x * (1 - jf); R.kn[1].rotation.x = -1.5 * jf + R.kn[1].rotation.x * (1 - jf); R.lg[0].rotation.x *= (1 - jf); R.lg[0].rotation.x += 0.1 * jf; R.kn[0].rotation.x *= (1 - jf); }
+    R.sh.position.set(x, 0.012, z); R.sh.scale.setScalar(0.55 * (1 - 0.35 * jf) * Math.max(0.001, ps));
+    R.root.updateMatrixWorld(true);
+    /* manos */
+    var kH = R.init ? 1 - Math.exp(-dt * 18) : 1, swing = s * sp, aim = o.aim || tw(R, 0, 1.9, mode === 'ball' ? -0.5 : -1.5, tpV2), hy;
+    for (i = 0; i < 2; i++) {
+      var sd = i === 0 ? -1 : 1, lx = 0.45 * sd, ly = 1.4, lz = -0.2;
+      if (mode === 'ball') { lx = 0.27 * sd; ly = 1.85 + crouch; lz = -0.46; }
+      else if (mode === 'run') { lx = 0.42 * sd; ly = 1.5 + 0.2 * Math.abs(swing); lz = -0.2 + 0.45 * (i === 0 ? swing : -swing); }
+      else if (mode === 'guard') { lx = 0.66 * sd; ly = 1.95 + 0.1 * Math.sin(time * 6 + i * 2); lz = -0.55 + 0.1 * Math.sin(time * 5 + i); }
+      else if (mode === 'dribble') { if (i === 1) { lx = 0.42; ly = o.hy || 1.7; lz = -0.55; } else { lx = -0.45; ly = 1.75; lz = -0.45; } }
+      else if (mode === 'screen') { lx = 0.15 * sd; ly = 1.25; lz = -0.35; }
+      else if (mode === 'ask') { lx = 0.2 * sd; ly = 2.1; lz = -0.95; }
+      else if (mode === 'pass') { lx = 0.2 * sd; ly = 2.15; lz = -1.45; }
+      else if (mode === 'up') { if (i === 1) { lx = 0.1; ly = 3.55; lz = -0.55; } else { lx = -0.22; ly = 3.0; lz = -0.4; } }
+      else if (mode === 'high') { lx = 0.45 * sd; ly = 3.3; lz = -0.4; }
+      tw(R, lx, ly, lz, tpV);
+      if (!R.hi) R.h[i].copy(tpV); else R.h[i].lerp(tpV, kH);
+    }
+    R.hi = true; R.init = true;
+    var sn = Math.sin(R.yaw), cs = Math.cos(R.yaw), vis = ps > 0.98;
+    R.aL.visible = R.aR.visible = R.hL.visible = R.hR.visible = vis;
+    if (vis) {
+      for (i = 0; i < 2; i++) {
+        var a = i === 0 ? -1 : 1, tgt = aim;
+        if (mode === 'pass') tgt = tw(R, 0.2 * a + a * 1.6, 2.15, -1.45, tpV);
+        ik(R.body, i ? R.aR : R.aL, i ? R.hR : R.hL, R.h[i], a, sn, cs, tgt, 0, mode === 'guard' ? 1 : 0.4);
+      }
+    }
+    R.lab.visible = true; R.lab.position.set(x, 3.75 * ps + jk, z); R.lab.scale.setScalar(0.8 * Math.max(0.001, ps));
+  }
+  function updateTwo(dt, time, ps) {
+    var V = acad.two, T = twoInit();
+    if (acad.passShown) hidePass();
+    if (acad.pivShown) hidePiv();
+    if (V.mode === 'place') { V.t = 0; V.run = false; }
+    if (V.run) V.t += dt * acad.speed;
+    if (V.t >= TWO_T && V.custom) { V.mode = 'place'; V.t = 0; V.run = false; V.pop = 0; T.a1.init = T.a2.init = T.d1.init = T.d2.init = false; T.a1.hi = T.a2.hi = T.d1.hi = T.d2.hi = false; }
+    if (V.t >= TWO_T) { if (V.loop) { V.t = 0; V.pop = 0; T.a1.init = T.a2.init = T.d1.init = T.d2.init = false; T.a1.hi = T.a2.hi = T.d1.hi = T.d2.hi = false; } else { V.t = TWO_T; V.run = false; } }
+    var t = V.t; acad.twoShown = true;
+    acad.feet.forEach(function (m) { m.visible = false; }); if (acad.ring) acad.ring.visible = false;
+    pony.visible = who.sex === 'f'; pony.rotation.x = -0.3; player.visible = pShadow.visible = true; dP.visible = dShadow.visible = true; dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = ps > 0.98;
+    var hb = V.ball === 2, S1 = hb ? V.s2 : V.s1, S2 = hb ? V.s1 : V.s2, H0 = [0, 0];
+    T.a1.lab = T.labs[hb ? 1 : 0]; T.a2.lab = T.labs[hb ? 0 : 1];
+    function mix(a, b, u) { return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]; }
+    function unit(a, b) { var dx = b[0] - a[0], dz = b[1] - a[1], d = Math.hypot(dx, dz) || 1; return [dx / d, dz / d]; }
+    var u1h = unit(S1, H0), u2h = unit(S2, H0);
+    var SD1 = [S1[0] + u1h[0] * 1.15, S1[1] + u1h[1] * 1.15], SD2 = [S2[0] + u2h[0] * 1.1, S2[1] + u2h[1] * 1.1];
+    var sg = S1[0] >= 0 ? 1 : -1, LD = [0.55 * sg, 0.6], dS = Math.max(0.5, Math.hypot(S1[0] - LD[0], S1[1] - LD[1]));
+    function along(r) { return mix(S1, LD, Math.max(0, Math.min(1, 1 - r / dS))); }
+    var RR = along(1.95), P1 = along(1.1), P2 = along(0.58);
+    function p1f(tt) {
+      if (tt < 1.65) return S1;
+      if (tt < 2.85) { var uu = (tt - 1.65) / 1.2; return mix(S1, RR, uu * (2 - uu) * 0.5 + uu * 0.5); }
+      if (tt < 3.25) return mix(RR, P1, (tt - 2.85) / 0.4);
+      if (tt < 3.65) return mix(P1, P2, (tt - 3.25) / 0.4);
+      if (tt < 4.4) return mix(P2, LD, sstep(3.65, 4.4, tt));
+      return LD;
+    }
+    var ret = sstep(5.9, 7.2, t), m1 = 'ball', u, jmp1 = 0;
+    var cd = unit(S1, LD), nx = -cd[1], nz = cd[0];
+    if (nx * (S2[0] - S1[0]) + nz * (S2[1] - S1[1]) < 0) { nx = -nx; nz = -nz; }                    // el corte se abre hacia el lado del balón: pasa POR DELANTE del defensor
+    var lat = 1.15 * Math.sin(Math.PI * Math.max(0, Math.min(1, (t - 1.65) / 1.6)));
+    var pc = p1f(t), p1 = t > 5.9 ? mix(LD, S1, ret) : [pc[0] + nx * lat, pc[1] + nz * lat];
+    jmp1 = (t > 3.65 && t < 4.4) ? Math.sin(Math.PI * (t - 3.65) / 0.75) : 0;
+    if (t < 0.9) m1 = 'ball'; else if (t < 1.65) m1 = 'pass'; else if (t < 2.7) m1 = 'ask'; else if (t < 3.65) m1 = 'ball'; else if (t < 4.0) m1 = 'up'; else if (t < 4.7) m1 = 'high'; else m1 = 'run';
+    if (t > 5.9) m1 = 'run';
+    var p2 = S2, m2 = 'ask', f2 = [S1[0], S1[1]];
+    if (t > 1.45) { m2 = 'ball'; f2 = [p1[0], p1[1]]; }
+    if (t > 2.05 && t < 2.8) m2 = 'pass';
+    if (t > 2.8) m2 = 'rest';
+    var md = 'guard', off1 = [SD1[0] - S1[0], SD1[1] - S1[1]], k1 = 1 - sstep(1.55, 3.0, t), q1 = p1f(t - 0.6);
+    var pd1 = [q1[0] + off1[0] * k1, q1[1] + off1[1] * k1];
+    if (t > 5.9) pd1 = mix(LD, SD1, ret);
+    var jd1 = (t > 3.95 && t < 4.5) ? 0.55 * Math.sin(Math.PI * (t - 3.95) / 0.55) : 0;
+    var hp = sstep(2.2, 3.4, t) * 0.45, pd2 = [SD2[0] + 0.15 * Math.sin(t * 2.6) + u2h[0] * hp, SD2[1] + 0.05 * Math.sin(t * 3.1) + u2h[1] * hp];
+    if (t > 5.9) pd2 = mix(pd2, SD2, ret);
+    /* hacia dónde miran */
+    var look1 = t < 0.9 ? [0, 0] : t < 1.65 ? S2 : (t < 3.65 ? [0, 0] : [0, 0]);
+    if (t >= 2.7 && t < 3.0) look1 = [0, 0];
+    twoActor(T.a1, dt, time, ps, p1[0], p1[1], look1[0], look1[1], m1, { stance: m1 === 'ball' && t < 0.9 ? 0.6 : 0.2, jump: jmp1 });
+    twoActor(T.a2, dt, time, ps, p2[0], p2[1], f2[0], f2[1], m2, { stance: 0.5 });
+    twoActor(T.d1, dt, time, ps, pd1[0], pd1[1], t < 1.55 ? p1[0] : (t < 3.3 ? S2[0] : p1[0]), t < 1.55 ? p1[1] : (t < 3.3 ? S2[1] : p1[1]), jd1 > 0 ? 'high' : md, { stance: 0.9, jump: jd1 });
+    twoActor(T.d2, dt, time, ps, pd2[0], pd2[1], p2[0], p2[1], md, { stance: 0.9 });
+    /* balón */
+    var bx, by, bz, A1 = T.a1, A2 = T.a2;
+    function mid(R, out) { return out.set((R.h[0].x + R.h[1].x) / 2, (R.h[0].y + R.h[1].y) / 2, (R.h[0].z + R.h[1].z) / 2); }
+    var bp = tpV, ba;
+    if (t < 1.0) mid(A1, bp);
+    else if (t < 1.55) { mid(A1, bp); ba = mid(A2, tpV2); var f = sstep(1.0, 1.55, t); bp.lerp(ba, f); bp.y += 0.25 * Math.sin(Math.PI * f); }
+    else if (t < 2.2) mid(A2, bp);
+    else if (t < 2.75) { mid(A2, bp); ba = mid(A1, tpV2); var f3 = sstep(2.2, 2.75, t); bp.lerp(ba, f3); bp.y += 0.15 * Math.sin(Math.PI * f3); }
+    else if (t < 4.0) mid(A1, bp);
+    else if (t < 4.35) { bp.set(A1.h[1].x, A1.h[1].y + 0.3, A1.h[1].z); var f4 = (t - 4.0) / 0.35; bp.x += (0 - bp.x) * f4; bp.z += (0 - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + 0.5 * Math.sin(Math.PI * f4); }
+    else if (t < 4.75) { var f5 = (t - 4.35) / 0.4; bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, 0); }
+    else bp.set(0, 0.0, 0);
+    ballMesh.visible = t < 4.75; shadow.visible = t < 4.75;
+    V.pop = Math.min(1, (V.pop === undefined ? 1 : V.pop) + dt * 6);
+    ballMesh.scale.setScalar(RB * (0.4 + 0.6 * V.pop)); ballMesh.position.copy(bp);
+    if ((t > 1.0 && t < 1.55) || (t > 2.2 && t < 2.75) || (t > 4 && t < 4.35)) ballMesh.rotation.x -= dt * 9;
+    shadow.position.set(bp.x, 0.012, bp.z); shadow.scale.setScalar(RB * (1.1 + bp.y * 0.04)); shadow.material.opacity = 0.32 / (1 + bp.y * 0.35);
+    aimDots.visible = false; pBall.copy(bp);
+    if (!TWO.rings) { TWO.rings = [0, 1].map(function (q) { var m = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.92, 40), new THREE.MeshBasicMaterial({ color: q ? 0x1b9ad6 : 0xf59e0b, transparent: true, opacity: 0.9, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.position.y = 0.03; m.renderOrder = 3; court.add(m); return m; }); }
+    TWO.rings.forEach(function (m, q) { var P = q ? V.s2 : V.s1; m.material.color.setHex((q ? 2 : 1) === (V.ball || 1) ? 0xf59e0b : 0x1b9ad6); m.visible = V.mode === 'place'; m.position.x = P[0]; m.position.z = P[1]; m.scale.setScalar(1 + 0.08 * Math.sin(time * 6)); });
+    handInit = false;
+  }
+  /* ---------- Bloqueo directo: el de arriba pasa al ala, bloquea al defensor del balón y hay dos opciones ---------- */
+  var SCR_T = 9.6, SCR_DEC = 2.8;
+  function kp(a, t) {
+    if (t <= a[0][0]) return [a[0][1], a[0][2]];
+    for (var i = 1; i < a.length; i++) if (t <= a[i][0]) { var u = (t - a[i - 1][0]) / (a[i][0] - a[i - 1][0]); return [a[i - 1][1] + (a[i][1] - a[i - 1][1]) * u, a[i - 1][2] + (a[i][2] - a[i - 1][2]) * u]; }
+    var l = a[a.length - 1]; return [l[1], l[2]];
+  }
+  function updateScr(dt, time, ps) {
+    var V = acad.scr, T = twoInit();
+    if (acad.passShown) hidePass();
+    if (acad.pivShown) hidePiv();
+    var waiting = V.ask && !V.choice && V.t >= SCR_DEC - 0.001;
+    if (V.run && !waiting) V.t += dt * acad.speed;
+    if (V.ask && !V.choice && V.t > SCR_DEC) V.t = SCR_DEC;
+    waiting = V.ask && !V.choice && V.t >= SCR_DEC - 0.001;
+    if (waiting) { V.nt = (V.nt || 0) - dt; if (V.nt <= 0) { V.nt = 1.2; try { window.dispatchEvent(new CustomEvent('bbpivot', { detail: { txt: '¿Qué hace el 2? Elige abajo' } })); } catch (er) {} } }
+    if (V.t >= SCR_T) {
+      V.t = 0; V.pop = 0; if (V.alt) V.choice = V.choice === 'A' ? 'B' : 'A'; else if (V.ask) V.choice = null;
+      T.a1.init = T.a2.init = T.d1.init = T.d2.init = false; T.a1.hi = T.a2.hi = T.d1.hi = T.d2.hi = false;
+    }
+    var t = V.t, ch = V.choice || 'A'; acad.twoShown = true;
+    acad.feet.forEach(function (m) { m.visible = false; }); if (acad.ring) acad.ring.visible = false;
+    pony.visible = who.sex === 'f'; pony.rotation.x = -0.3; player.visible = pShadow.visible = true; dP.visible = dShadow.visible = true; dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = ps > 0.98;
+    T.a1.lab = T.labs[0]; T.a2.lab = T.labs[1];
+    var TP = [0, 7.5], WP = [5, 5], DT0 = [0.15, 6.4], DW0 = [4.2, 4.2];
+    var kA1 = ch === 'A' ? [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.25, 5.75], [4.4, 4.25, 5.75], [5.2, 3.6, 5.0], [7.7, 3.6, 5.0]]
+      : [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.25, 5.75], [2.85, 4.25, 5.75], [3.5, 3.7, 4.3], [4.0, 2.6, 2.4], [4.35, 2.05, 1.8], [4.7, 1.4, 1.2], [5.45, 0.9, 0.85], [7.7, 0.9, 0.85]];
+    var kA2 = ch === 'A' ? [[0, 5, 5], [2.8, 5, 5], [3.15, 5.3, 6.1], [3.6, 4.5, 6.9], [4.1, 3.4, 6.5], [4.5, 2.95, 5.5], [4.9, 2.6, 4.5], [5.3, 2.0, 3.3], [5.7, 1.4, 2.2], [6.45, 1.0, 1.2], [7.7, 1.0, 1.2]]
+      : [[0, 5, 5], [2.8, 5, 5], [3.3, 4.3, 5.2], [7.7, 4.3, 5.2]];
+    var kDW = ch === 'A' ? [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.6, 4.1, 4.5], [4.5, 3.9, 4.6], [5.2, 3.0, 3.6], [5.9, 2.3, 2.5], [7.7, 2.3, 2.5]]
+      : [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.3, 4.2, 4.9], [4.0, 4.0, 4.9], [7.7, 4.0, 4.9]];
+    var kDT = ch === 'A' ? [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.5, 5.2], [4.0, 3.5, 5.2], [4.8, 3.0, 4.0], [5.5, 2.4, 2.8], [7.7, 2.4, 2.8]]
+      : [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.5, 5.2], [3.3, 3.5, 5.2], [3.9, 3.3, 4.4], [4.4, 3.1, 3.6], [5.0, 2.7, 3.0], [5.5, 2.4, 2.4], [7.7, 2.4, 2.4]];
+    function P(k, S, tt) { var p = kp(k, Math.min(tt, 7.7)); if (tt > 7.7) { var r = sstep(7.7, 9.0, tt); p = [p[0] + (S[0] - p[0]) * r, p[1] + (S[1] - p[1]) * r]; } return p; }
+    var p1 = P(kA1, TP, t), p2 = P(kA2, WP, t), pw = P(kDW, DW0, t), pt = P(kDT, DT0, t);
+    function look(k, S, def) { var a = P(k, S, t), b = P(k, S, t + 0.25); return Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.06 ? b : def; }
+    var l1 = look(kA1, TP, p2), l2 = look(kA2, WP, ch === 'B' && t > 3.5 ? p1 : [0, 0]), lw = look(kDW, DW0, p2), lt = look(kDT, DT0, p1);
+    if (t < 1.0) l2 = TP;
+    if (t < 1.5 && t >= 0.9) l1 = WP;
+    /* modos */
+    var m1 = 'ball', m2 = 'ask', j1 = 0, j2 = 0, jw = 0, jt = 0;
+    if (t < 0.9) m1 = 'ball'; else if (t < 1.5) m1 = 'pass'; else if (t < 2.4) m1 = 'run';
+    else if (ch === 'A') m1 = t < 4.4 ? 'screen' : (t < 7.2 ? 'ask' : 'run');
+    else { m1 = t < 2.85 ? 'screen' : t < 3.9 ? 'ask' : t < 4.7 ? 'ball' : t < 5.1 ? 'up' : t < 5.7 ? 'high' : 'run'; j1 = (t > 4.7 && t < 5.45) ? Math.sin(Math.PI * (t - 4.7) / 0.75) : 0; }
+    var drb = false;
+    if (t < 1.5) m2 = 'ask'; else m2 = 'ball';
+    if (ch === 'A') { if (t >= 2.7 && t < 4.9) { m2 = 'dribble'; drb = true; } else if (t >= 5.7 && t < 6.05) m2 = 'up'; else if (t >= 6.05 && t < 6.6) m2 = 'high'; else if (t >= 6.6) m2 = 'run'; j2 = (t > 5.7 && t < 6.45) ? Math.sin(Math.PI * (t - 5.7) / 0.75) : 0; jw = (t > 5.95 && t < 6.45) ? 0.5 * Math.sin(Math.PI * (t - 5.95) / 0.5) : 0; }
+    else { if (t >= 2.8 && t < 3.3) { m2 = 'dribble'; drb = true; } else if (t >= 3.4 && t < 4.0) m2 = 'pass'; else if (t >= 4.0) m2 = 'rest'; jt = (t > 5.0 && t < 5.5) ? 0.5 * Math.sin(Math.PI * (t - 5.0) / 0.5) : 0; }
+    var dbY = RB + 1.7 * Math.abs(Math.cos(Math.PI * (t - (ch === 'A' ? 2.7 : 2.8)) / 0.4));
+    twoActor(T.a1, dt, time, ps, p1[0], p1[1], l1[0], l1[1], m1, { stance: m1 === 'screen' ? 1 : 0.2, jump: j1 });
+    twoActor(T.a2, dt, time, ps, p2[0], p2[1], l2[0], l2[1], m2, { stance: m2 === 'ball' && t < 2.7 ? 0.5 : 0.2, jump: j2, hy: Math.max(1.2, Math.min(2.0, dbY + 0.35)) });
+    twoActor(T.d1, dt, time, ps, pw[0], pw[1], lw[0], lw[1], jw > 0 ? 'high' : 'guard', { stance: 0.9, jump: jw });
+    twoActor(T.d2, dt, time, ps, pt[0], pt[1], lt[0], lt[1], jt > 0 ? 'high' : 'guard', { stance: 0.9, jump: jt });
+    /* balón */
+    var A1 = T.a1, A2 = T.a2, bp = tpV, ba, vis = true;
+    function mid(R, out) { return out.set((R.h[0].x + R.h[1].x) / 2, (R.h[0].y + R.h[1].y) / 2, (R.h[0].z + R.h[1].z) / 2); }
+    function flight(Rs, Re, a, b, arc) { mid(Rs, bp); var e = mid(Re, tpV2), f = sstep(a, b, t); bp.lerp(e, f); bp.y += arc * Math.sin(Math.PI * f); }
+    function shot(R, a, b, c) {                                             // bandeja: suelta, aro y red
+      if (t < b) { bp.set(R.h[1].x, R.h[1].y + 0.3, R.h[1].z); var f4 = (t - a) / (b - a); bp.x += (0 - bp.x) * f4; bp.z += (0 - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + 0.5 * Math.sin(Math.PI * f4); }
+      else if (t < c) { var f5 = (t - b) / (c - b); bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, 0); } else vis = false;
+    }
+    if (t < 1.0) mid(A1, bp);
+    else if (t < 1.5) flight(A1, A2, 1.0, 1.5, 0.25);
+    else if (ch === 'A') {
+      if (t < 2.7) mid(A2, bp);
+      else if (t < 4.9) { tw(A2, 0.42, dbY, -0.55, bp); }
+      else if (t < 6.05) mid(A2, bp);
+      else shot(A2, 6.05, 6.4, 6.8);
+    } else {
+      if (t < 2.8) mid(A2, bp);
+      else if (t < 3.3) tw(A2, 0.42, dbY, -0.55, bp);
+      else if (t < 3.55) mid(A2, bp);
+      else if (t < 4.0) flight(A2, A1, 3.55, 4.0, 0.2);
+      else if (t < 5.1) mid(A1, bp);
+      else shot(A1, 5.1, 5.45, 5.85);
+    }
+    ballMesh.visible = vis; shadow.visible = vis;
+    V.pop = Math.min(1, (V.pop === undefined ? 1 : V.pop) + dt * 6);
+    ballMesh.scale.setScalar(RB * (0.4 + 0.6 * V.pop)); ballMesh.position.copy(bp);
+    if ((t > 1.0 && t < 1.5) || (t > 3.55 && t < 4.0 && ch === 'B')) ballMesh.rotation.x -= dt * 9;
+    shadow.position.set(bp.x, 0.012, bp.z); shadow.scale.setScalar(RB * (1.1 + Math.max(0, bp.y) * 0.04)); shadow.material.opacity = 0.32 / (1 + Math.max(0, bp.y) * 0.35);
+    aimDots.visible = false; pBall.copy(bp);
+    if (TWO.rings) TWO.rings.forEach(function (m) { m.visible = false; });
+    handInit = false;
+  }
   window.BBAcad3D = {
     enter: function (cb) {
       acad.prev = mode; acad.on = true; acad.pending = cb || null;
@@ -923,17 +1183,22 @@
       document.querySelector('.app').classList.add('acad-on'); hud.hidden = true; word.visible = false; hidePass(); dSt.init = false;
     },
     exit: function () {
-      acad.on = false; acad.run = false; acad.pass = null; acad.piv = null; if (acad.pivShown) hidePiv(); if (acad.passShown) hidePass(); acad.pending = null; acad.feet.forEach(function (m) { m.visible = false; }); if (acad.ring) acad.ring.visible = false;
+      acad.on = false; acad.run = false; acad.pass = null; acad.piv = null; acad.two = acad.scr = null; if (acad.twoShown) hideTwo(); if (acad.pivShown) hidePiv(); if (acad.passShown) hidePass(); acad.pending = null; acad.feet.forEach(function (m) { m.visible = false; }); if (acad.ring) acad.ring.visible = false;
       legG[0].position.y = legG[1].position.y = 0.98; legG[0].rotation.x = legG[1].rotation.x = 0; legG[0].userData.knee.rotation.x = legG[1].userData.knee.rotation.x = 0; body.rotation.x = 0; acad.lean = 0;
       document.querySelector('.app').classList.remove('acad-on'); word.visible = true;
       setOrbit(false); oYaw = oPitch = 0; oZoom = 1;
       if (camera.view && camera.view.enabled) camera.clearViewOffset();
       if (acad.prev !== 'court') setMode('logo'); else { newBall(true); hud.hidden = false; hudText(); }
     },
-    playPivot: function (type, o) { o = o || {}; acad.pass = null; acad.piv = { type: type, t: 0, run: true, loop: true, pf: o.foot === 'R' ? 1 : 0, hInit: false, k: -2 }; acad.passOrbit = false; acad.midZ = PIV_Z; oYaw = 2.5; oPitch = 0.12; oZoom = 1.3; },
-    playPass: function (type, o) { o = o || {}; acad.piv = null; acad.pass = { type: type, t: 0, run: !o.manual, loop: o.loop !== false, pop: 1, manual: !!o.manual, state: 'ready', pull: 0, pullS: 0, fs: 1, leg: 0, hInit: false }; acad.passOrbit = false; acad.midZ = (PZ + RZ) / 2; oYaw = 1.2; oPitch = 0.1; oZoom = 0.58; },
-    play: function (tokens, o) { o = o || {}; acad.piv = null; if (acad.pass) { acad.pass = null; oYaw = 0.95; oZoom = 1; } acad.midZ = (acad.zStart + acad.zEnd) / 2; acadSetup(tokens); acad.loop = !!o.loop; acad.onTok = o.onTok || null; acad.onEnd = o.onEnd || null; acad.run = true; },
-    stop: function () { acad.run = false; acad.pass = null; acad.piv = null; acad.feet.forEach(function (m) { m.visible = false; }); },
+    twoBall: function (n) { acad.twoBall = n; if (acad.two) acad.two.ball = n; },
+    playScreen: function (o) { o = o || {}; acad.pass = null; acad.piv = null; acad.two = null; acad.scr = { t: 0, run: true, pop: 1, choice: o.choice === 'ask' ? null : (o.choice || 'A'), ask: o.choice === 'ask', alt: o.choice === 'alt', nt: 0 }; acad.passOrbit = false; acad.midZ = 4.4; oYaw = -0.2; oPitch = 0.5; oZoom = 0.45; },
+    scrChoose: function (c) { if (acad.scr) { acad.scr.choice = c; } },
+    twoGo: function () { var V = acad.two; if (V && V.custom) { V.mode = 'go'; V.t = 0; V.run = true; V.pop = 0; if (TWO) { TWO.a1.init = TWO.a2.init = TWO.d1.init = TWO.d2.init = false; TWO.a1.hi = TWO.a2.hi = TWO.d1.hi = TWO.d2.hi = false; } } },
+    playTwo: function (o) { o = o || {}; acad.scr = null; acad.twoPos = acad.twoPos || { s1: [5.0, 5.0], s2: [0.0, 7.5] }; acad.pass = null; acad.piv = null; acad.two = { t: 0, run: !o.place, loop: !o.place, custom: !!o.place, mode: o.place ? 'place' : 'demo', pop: 1, ball: acad.twoBall || 1, s1: o.place ? acad.twoPos.s1 : [5.0, 5.0], s2: o.place ? acad.twoPos.s2 : [0.0, 7.5] }; acad.passOrbit = false; acad.midZ = 3.9; oYaw = -0.2; oPitch = 0.5; oZoom = 0.45; },
+    playPivot: function (type, o) { o = o || {}; acad.pass = null; acad.two = acad.scr = null; acad.piv = { type: type, t: 0, run: true, loop: true, pf: o.foot === 'R' ? 1 : 0, hInit: false, k: -2 }; acad.passOrbit = false; acad.midZ = PIV_Z; oYaw = 2.5; oPitch = 0.12; oZoom = 1.3; },
+    playPass: function (type, o) { o = o || {}; acad.piv = null; acad.two = acad.scr = null; acad.pass = { type: type, t: 0, run: !o.manual, loop: o.loop !== false, pop: 1, manual: !!o.manual, state: 'ready', pull: 0, pullS: 0, fs: 1, leg: 0, hInit: false }; acad.passOrbit = false; acad.midZ = (PZ + RZ) / 2; oYaw = 1.2; oPitch = 0.1; oZoom = 0.58; },
+    play: function (tokens, o) { o = o || {}; acad.piv = null; acad.two = acad.scr = null; if (acad.pass) { acad.pass = null; oYaw = 0.95; oZoom = 1; } acad.midZ = (acad.zStart + acad.zEnd) / 2; acadSetup(tokens); acad.loop = !!o.loop; acad.onTok = o.onTok || null; acad.onEnd = o.onEnd || null; acad.run = true; },
+    stop: function () { acad.run = false; acad.pass = null; acad.piv = null; acad.two = acad.scr = null; acad.feet.forEach(function (m) { m.visible = false; }); },
     speed: function (s) { acad.speed = s; },
     passOrbit: function (on) { acad.passOrbit = !!on; if (acad.pass) { acad.pass.pull = 0; } },
     hand: function (h) { if (h) acad.hand = h; return acad.hand; }
@@ -1330,9 +1595,29 @@
     document.getElementById('hHint').textContent = '¡Buen tiro!';
   }
 
+  var rcz = new THREE.Raycaster(), rcv = new THREE.Vector2();
+  function groundAt(e) {
+    var r = canvas.getBoundingClientRect(); rcv.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    rcz.setFromCamera(rcv, camera); var o = rcz.ray.origin, d = rcz.ray.direction; if (Math.abs(d.y) < 1e-4) return null;
+    var k = -o.y / d.y; return k > 0 ? [o.x + d.x * k, o.z + d.z * k] : null;
+  }
+  function twoPick(e) {
+    var g = groundAt(e), V = acad.two; if (!g) return -1;
+    var d1 = Math.hypot(g[0] - V.s1[0], g[1] - V.s1[1]), d2 = Math.hypot(g[0] - V.s2[0], g[1] - V.s2[1]);
+    if (Math.min(d1, d2) > 1.9) return -1; return d1 <= d2 ? 0 : 1;
+  }
+  function twoMove(e) {
+    var g = groundAt(e), V = acad.two; if (!g || !V) return;
+    var P = acad.tdrag === 0 ? V.s1 : V.s2, O = acad.tdrag === 0 ? V.s2 : V.s1;
+    var x = Math.max(-8, Math.min(8, g[0])), z = Math.max(2.2, Math.min(10.2, g[1])), hd = Math.hypot(x, z);
+    if (hd < 3.4) { x = x / (hd || 1) * 3.4; z = z / (hd || 1) * 3.4; if (z < 2.2) z = 2.2; }
+    var od = Math.hypot(x - O[0], z - O[1]); if (od < 1.9) { x = O[0] + (x - O[0]) / (od || 1) * 1.9; z = O[1] + (z - O[1]) / (od || 1) * 1.9; }
+    P[0] = x; P[1] = z; acad.tmoved = true;
+  }
   canvas.addEventListener('pointerdown', function (e) {
     canvas.setPointerCapture(e.pointerId);
     pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (acad.on && acad.two && acad.two.mode === 'place') { var gi = twoPick(e); if (gi >= 0) { acad.tdrag = gi; acad.tmoved = false; return; } }
     if (acad.on && acad.pass && acad.pass.manual && !acad.passOrbit) { acad.pdrag = { y0: e.clientY }; return; }   // pase: echar atrás y soltar
     if (mode === 'court') {
       if (orbitOn) { last.x = e.clientX; last.y = e.clientY; lastPinch = 0; return; }
@@ -1347,6 +1632,7 @@
   canvas.addEventListener('pointermove', function (e) {
     if (!pointers[e.pointerId]) return;
     pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (acad.tdrag != null && acad.two) { twoMove(e); return; }
     if (acad.pdrag) { if (acad.pass) acad.pass.pull = Math.max(0, Math.min(1, (e.clientY - acad.pdrag.y0) / (stage.clientHeight * 0.22))); return; }
     if (mode === 'court') {
       if (orbitOn) {
@@ -1378,6 +1664,7 @@
   });
   function up(e) {
     delete pointers[e.pointerId]; lastPinch = 0;
+    if (acad.tdrag != null) { if (!acad.tmoved && acad.two) { acad.two.ball = acad.tdrag + 1; acad.twoBall = acad.two.ball; try { window.dispatchEvent(new CustomEvent('bbtwoball', { detail: { n: acad.two.ball } })); } catch (er) {} } acad.tdrag = null; return; }
     if (acad.pdrag) {
       var PP = acad.pass; acad.pdrag = null;
       if (PP && PP.manual && PP.state === 'ready' && PP.pull > 0.22) { PP.fs = 1.3 - 0.6 * PP.pull; PP.state = 'go'; PP.t = 0.45; PP.run = true; PP.pop = 1; }
@@ -1390,7 +1677,7 @@
     else { last.x = pointers[ids[0]].x; last.y = pointers[ids[0]].y; }
   }
   canvas.addEventListener('pointerup', up);
-  canvas.addEventListener('pointercancel', function (e) { delete pointers[e.pointerId]; acad.pdrag = null; if (acad.pass) acad.pass.pull = 0; aim = null; moveDrag = false; dragging = false; });
+  canvas.addEventListener('pointercancel', function (e) { delete pointers[e.pointerId]; acad.pdrag = null; acad.tdrag = null; if (acad.pass) acad.pass.pull = 0; aim = null; moveDrag = false; dragging = false; });
   canvas.addEventListener('wheel', function (e) {
     if (mode === 'court') {
       if (!orbitOn) return;
@@ -1669,6 +1956,8 @@
       <button id="acB0" type="button" aria-pressed="true">Paso 0</button>
       <button id="acT4" type="button" aria-pressed="false">Pases</button>
       <button id="acT5" type="button" aria-pressed="false">Pivotes</button>
+      <button id="acT6" type="button" aria-pressed="false">2 para 2</button>
+      <button id="acT7" type="button" aria-pressed="false">Bloqueo directo</button>
     </div>
     <div class="seg" id="acSub" role="group" aria-label="Sección del paso 0">
       <button id="acT1" type="button" aria-pressed="true">Regla</button>
@@ -1681,7 +1970,7 @@
 <script>
 (function () {
   var wrap = document.getElementById('acad'), body = document.getElementById('acBody');
-  var tabBtns = [document.getElementById('acT1'), document.getElementById('acT2'), document.getElementById('acT3'), document.getElementById('acT4'), document.getElementById('acT5')];
+  var tabBtns = [document.getElementById('acT1'), document.getElementById('acT2'), document.getElementById('acT3'), document.getElementById('acT4'), document.getElementById('acT5'), document.getElementById('acT6'), document.getElementById('acT7')];
   var LAB = { B: 'Bote', G: 'Paso 0 · recoge', '1': 'Paso 1', '2': 'Paso 2', '3': 'Paso 3', S: 'Tiro', D: 'Bote otra vez', R: 'Recibe el pase' };
   var PLAYS = [
     { t: 'BBBG12S', a: 'legal', why: 'Recoge el balón (paso 0, no cuenta), da el paso 1 y el 2 y lanza. Dos pasos tras recoger: legal.' },
@@ -1836,12 +2125,58 @@
     Array.prototype.forEach.call(body.querySelectorAll('[data-v]'), function (b) { b.onclick = function () { pivType = b.getAttribute('data-v'); viewPiv(); }; });
   }
 
+  var twoPlace = false, twoBall = 1;
+  window.addEventListener('bbtwoball', function (e) { twoBall = e.detail.n; var a = document.getElementById('acB1'), b = document.getElementById('acB2'); if (a) a.setAttribute('aria-pressed', twoBall === 1); if (b) b.setAttribute('aria-pressed', twoBall === 2); });
+  function viewTwo() {
+    stopAnim();
+    body.innerHTML = '<div class="acopts"><button type="button" id="acTD" aria-pressed="' + !twoPlace + '">Demostración</button><button type="button" id="acTP" aria-pressed="' + twoPlace + '">Colócalos tú</button></div>' +
+      (twoPlace ? '<p class="acn"><b>Arrastra el 1 y el 2</b> a donde quieras sobre la pista. Los defensores se colocan solos entre cada atacante y la canasta. <b>Toca a un jugador</b> (o usa los botones) para darle el balón; su aro se pone naranja. Con <b>¡Jugar!</b>, el que tiene el balón pasa y corta a canasta, y recibe de vuelta.</p>' +
+        '<div class="acopts"><button type="button" id="acB1" aria-pressed="' + (twoBall === 1) + '">Balón: jugador 1</button><button type="button" id="acB2" aria-pressed="' + (twoBall === 2) + '">Balón: jugador 2</button></div>' +
+        '<div class="acopts"><button type="button" id="acGo" class="primary">¡Jugar!</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>'
+      : '<p class="acn"><b>2 atacantes (azul)</b> contra <b>2 defensores (rojo)</b>. Tú eres el <b>1</b>, con el balón a 45° de la canasta; el <b>2</b> espera arriba, fuera del triple.</p>' +
+        '<div class="acq">Pasa y corta</div><ol class="acs">' +
+        '<li>El <b>1</b> pasa al <b>2</b> (arriba, fuera del triple) y <b>no se queda parado</b>.</li>' +
+        '<li>Inmediatamente <b>corta hacia la canasta</b>, pidiendo el balón con las manos. El defensor, pendiente del balón, llega tarde.</li>' +
+        '<li>El <b>2</b> le devuelve el pase <b>al hueco</b>, por delante del cortador, y el <b>1</b> recibe en carrera y termina con una <b>bandeja</b>.</li></ol>' +
+        '<div class="acopts"><button type="button" id="acRep">Ver otra vez</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>');
+    bindSlow();
+    A.stop(); A.speed(slow ? 0.45 : 1); A.twoBall(twoBall); A.playTwo({ place: twoPlace });
+    var b1 = document.getElementById('acB1'), b2 = document.getElementById('acB2');
+    if (b1) b1.onclick = function () { A.twoBall(1); twoBall = 1; b1.setAttribute('aria-pressed', true); b2.setAttribute('aria-pressed', false); };
+    if (b2) b2.onclick = function () { A.twoBall(2); twoBall = 2; b2.setAttribute('aria-pressed', true); b1.setAttribute('aria-pressed', false); };
+    document.getElementById('acTD').onclick = function () { twoPlace = false; viewTwo(); };
+    document.getElementById('acTP').onclick = function () { twoPlace = true; viewTwo(); };
+    var g = document.getElementById('acGo'); if (g) g.onclick = function () { A.speed(slow ? 0.45 : 1); A.twoGo(); };
+    var rp = document.getElementById('acRep'); if (rp) rp.onclick = function () { A.stop(); A.speed(slow ? 0.45 : 1); A.playTwo({ place: false }); };
+  }
+
+  var scrMode = 'A';
+  function viewScr() {
+    stopAnim();
+    var ask = scrMode === 'ask';
+    body.innerHTML = '<p class="acn">El <b>1</b> (arriba) pasa al <b>2</b> (a 45°) y va a hacerle un <b>bloqueo al defensor del balón</b>. Después, el 2 decide.</p>' +
+      '<div class="acopts"><button type="button" data-m="A" aria-pressed="' + (scrMode === 'A') + '">Opción A: bota a canasta</button><button type="button" data-m="B" aria-pressed="' + (scrMode === 'B') + '">Opción B: pase al que bloquea</button><button type="button" data-m="alt" aria-pressed="' + (scrMode === 'alt') + '">Las dos</button><button type="button" data-m="ask" aria-pressed="' + ask + '">Decido yo</button></div>' +
+      (ask ? '<p class="acn"><b>La jugada se para tras el bloqueo.</b> ¿Qué hace el 2?</p><div class="acopts"><button type="button" id="acCA" class="primary">Bota a canasta (paso 0)</button><button type="button" id="acCB" class="primary">Pasa al que bloqueó</button></div>' : '') +
+      '<ol class="acs">' +
+      '<li>El <b>1</b> pasa al ala y corre a <b>bloquear</b>: se coloca junto al defensor del balón, con los pies abiertos y los brazos cruzados, <b>quieto</b>.</li>' +
+      '<li><b>Opción A:</b> el 2 usa el bloqueo, <b>bota hacia canasta</b>, recoge el balón (<b>paso 0</b>), da dos pasos y termina en bandeja.</li>' +
+      '<li><b>Opción B:</b> el que bloquea se <b>abre hacia la línea de fondo</b>, el 2 le <b>pasa</b> y él termina en bandeja.</li></ol>' +
+      '<div class="acopts"><button type="button" id="acRep">Ver otra vez</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>';
+    bindSlow();
+    A.stop(); A.speed(slow ? 0.45 : 1); A.playScreen({ choice: scrMode });
+    Array.prototype.forEach.call(body.querySelectorAll('[data-m]'), function (b) { b.onclick = function () { scrMode = b.getAttribute('data-m'); viewScr(); }; });
+    var ca = document.getElementById('acCA'), cb = document.getElementById('acCB');
+    if (ca) ca.onclick = function () { A.scrChoose('A'); };
+    if (cb) cb.onclick = function () { A.scrChoose('B'); };
+    document.getElementById('acRep').onclick = function () { A.stop(); A.speed(slow ? 0.45 : 1); A.playScreen({ choice: scrMode }); };
+  }
+
   var lastSub = 0, blk0 = document.getElementById('acB0'), subSeg = document.getElementById('acSub');
   function tab(n) {
     if (n < 3) lastSub = n;
     tabBtns.forEach(function (b, i) { b.setAttribute('aria-pressed', i === n); });
     blk0.setAttribute('aria-pressed', n < 3); subSeg.hidden = n >= 3;
-    if (n === 0) viewRule(); else if (n === 1) viewPlays(true); else if (n === 2) viewQuiz(true); else if (n === 3) viewPass(); else viewPiv();
+    if (n === 0) viewRule(); else if (n === 1) viewPlays(true); else if (n === 2) viewQuiz(true); else if (n === 3) viewPass(); else if (n === 4) viewPiv(); else if (n === 5) viewTwo(); else viewScr();
     body.parentNode.scrollTop = 0;
   }
   tabBtns.forEach(function (b, i) { b.addEventListener('click', function () { tab(i); }); });
