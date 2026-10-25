@@ -244,7 +244,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v4.0',  CAMH = 2.9, R3 = 6.75, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v4.1',  CAMH = 2.9, R3 = 6.75, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -948,7 +948,7 @@
     if (TWO) return TWO;
     var G = getRigs(), a1 = { root: player, sh: pShadow, body: body, legs: legs, lg: legG, kn: [legG[0].userData.knee, legG[1].userData.knee], aL: armL, aR: armR, hL: handL, hR: handR };
     TWO = { a1: a1, d1: G[1], a2: cloneRig(false, '10', 0x2a1d16), d2: cloneRig(true, '7', 0x4a3220) };
-    TWO.labs = [mkLabel('1', '#1b9ad6'), mkLabel('2', '#1b9ad6')]; TWO.a1.lab = TWO.labs[0]; TWO.a2.lab = TWO.labs[1]; TWO.d1.lab = mkLabel('X', '#d9534f'); TWO.d2.lab = mkLabel('X', '#d9534f');
+    TWO.labs = [mkLabel('1', '#1b9ad6'), mkLabel('2', '#1b9ad6')]; TWO.a1.lab = TWO.labs[0]; TWO.a2.lab = TWO.labs[1]; TWO.dlabs = [mkLabel('A', '#d9534f'), mkLabel('B', '#d9534f')]; TWO.d1.lab = TWO.dlabs[0]; TWO.d2.lab = TWO.dlabs[1];
     ['a1', 'a2', 'd1', 'd2'].forEach(function (k) { var R = TWO[k]; R.h = [new THREE.Vector3(), new THREE.Vector3()]; R.hi = false; R.ph = 0; R.yaw = 0; R.px = 0; R.pz = 0; R.spd = 0; R.init = false; });
     return TWO;
   }
@@ -1027,7 +1027,7 @@
     acad.feet.forEach(function (m) { m.visible = false; }); if (acad.ring) acad.ring.visible = false;
     pony.visible = who.sex === 'f'; pony.rotation.x = -0.3; player.visible = pShadow.visible = true; dP.visible = dShadow.visible = true; dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = ps > 0.98;
     var hb = V.ball === 2, S1 = hb ? V.s2 : V.s1, S2 = hb ? V.s1 : V.s2, H0 = [0, 0];
-    T.a1.lab = T.labs[hb ? 1 : 0]; T.a2.lab = T.labs[hb ? 0 : 1];
+    T.a1.lab = T.labs[hb ? 1 : 0]; T.a2.lab = T.labs[hb ? 0 : 1]; T.d1.lab = T.dlabs[hb ? 1 : 0]; T.d2.lab = T.dlabs[hb ? 0 : 1];
     function mix(a, b, u) { return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]; }
     function unit(a, b) { var dx = b[0] - a[0], dz = b[1] - a[1], d = Math.hypot(dx, dz) || 1; return [dx / d, dz / d]; }
     var u1h = unit(S1, H0), u2h = unit(S2, H0);
@@ -1035,7 +1035,7 @@
     var sg = S1[0] >= 0 ? 1 : -1, LD = [0.55 * sg, 0.6], dS = Math.max(0.5, Math.hypot(S1[0] - LD[0], S1[1] - LD[1]));
     function along(r) { return mix(S1, LD, Math.max(0, Math.min(1, 1 - r / dS))); }
     var RR = along(1.95), P1 = along(1.1), P2 = along(0.58);
-    var FK = [S1[0] + 0.9 * sg, S1[1] - 1.2];                                       // amago hacia la línea de fondo
+    var cutB = acad.twoCut === 'base', FK = cutB ? [S1[0] - 0.8 * sg, S1[1] + 0.7] : [S1[0] + 0.9 * sg, S1[1] - 1.2];                                       // amago hacia la línea de fondo
     function p1f(tt) {
       if (tt < 1.65) return S1;
       if (tt < 2.15) return mix(S1, FK, sstep(1.65, 2.15, tt));
@@ -1047,7 +1047,8 @@
     }
     var ret = sstep(6.4, 7.7, t), m1 = 'ball', u, jmp1 = 0;
     var cd = unit(S1, LD), nx = -cd[1], nz = cd[0];
-    if (nx * (S2[0] - S1[0]) + nz * (S2[1] - S1[1]) < 0) { nx = -nx; nz = -nz; }                    // el corte se abre hacia el lado del balón: pasa POR DELANTE del defensor
+    if (nx * (S2[0] - S1[0]) + nz * (S2[1] - S1[1]) < 0) { nx = -nx; nz = -nz; }
+    if (cutB) { nx = -nx; nz = -nz; }                    // el corte se abre hacia el lado del balón: pasa POR DELANTE del defensor
     var lat = 1.15 * Math.sin(Math.PI * Math.max(0, Math.min(1, (t - 2.15) / 1.6)));
     var pc = p1f(t), p1 = t > 6.4 ? mix(LD, S1, ret) : [pc[0] + nx * lat, pc[1] + nz * lat];
     jmp1 = (t > 4.15 && t < 4.9) ? Math.sin(Math.PI * (t - 4.15) / 0.75) : 0;
@@ -1111,34 +1112,34 @@
       V.t = 0; V.pop = 0; if (V.alt) V.choice = V.choice === 'A' ? 'B' : 'A'; else if (V.ask) V.choice = null;
       T.a1.init = T.a2.init = T.d1.init = T.d2.init = false; T.a1.hi = T.a2.hi = T.d1.hi = T.d2.hi = false;
     }
-    var t = V.t, ch = V.choice || 'A'; acad.twoShown = true;
+    var t = V.t, ch = V.choice || 'A', ib = ch !== 'A'; acad.twoShown = true;
     acad.feet.forEach(function (m) { m.visible = false; }); if (acad.ring) acad.ring.visible = false;
     pony.visible = who.sex === 'f'; pony.rotation.x = -0.3; player.visible = pShadow.visible = true; dP.visible = dShadow.visible = true; dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = ps > 0.98;
-    T.a1.lab = T.labs[0]; T.a2.lab = T.labs[1];
+    T.a1.lab = T.labs[0]; T.a2.lab = T.labs[1]; T.d1.lab = T.dlabs[1]; T.d2.lab = T.dlabs[0];
     var TP = [0, 7.5], WP = [5, 5], DT0 = [0.15, 6.4], DW0 = [4.2, 4.2];
     var kA1 = ch === 'A' ? [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.0, 5.0], [4.4, 4.0, 5.0], [5.2, 3.4, 4.3], [7.7, 3.4, 4.3]]
-      : [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.0, 5.0], [2.85, 4.0, 5.0], [3.5, 3.7, 3.9], [4.1, 3.4, 2.4], [4.6, 3.1, 1.3], [4.9, 3.0, 1.2], [5.3, 2.1, 1.0], [5.7, 1.35, 0.95], [6.4, 0.9, 0.85], [7.7, 0.9, 0.85]];
+      : [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.0, 5.0], [2.85, 4.0, 5.0], [3.5, 3.7, 3.9], [4.1, 3.4, 2.4], [4.6, 3.1, 1.3], [5.2, 3.0, 1.2], [5.55, 2.1, 1.0], [6.0, 1.35, 0.95], [6.75, 0.9, 0.85], [7.7, 0.9, 0.85]];
     var kA2 = ch === 'A' ? [[0, 5, 5], [2.8, 5, 5], [3.15, 4.9, 5.9], [3.6, 4.1, 6.4], [4.1, 3.1, 6.0], [4.5, 2.6, 5.0], [4.9, 2.3, 4.0], [5.3, 1.9, 3.0], [5.7, 1.4, 2.1], [6.45, 1.0, 1.2], [7.7, 1.0, 1.2]]
-      : [[0, 5, 5], [2.8, 5, 5], [3.3, 4.8, 5.8], [3.8, 4.4, 5.6], [7.7, 4.4, 5.6]];
-    var kDW = ch === 'A' ? [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.5, 4.4, 4.9], [4.2, 4.1, 5.6], [4.8, 3.3, 5.4], [5.4, 2.6, 3.9], [5.9, 2.2, 2.6], [7.7, 2.2, 2.6]]
-      : [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.3, 4.2, 4.8], [3.9, 3.9, 4.8], [7.7, 3.9, 4.8]];
-    var kDT = ch === 'A' ? [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [4.0, 3.3, 5.2], [4.8, 2.9, 4.2], [5.5, 2.4, 3.0], [7.7, 2.4, 3.0]]
-      : [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [3.3, 3.3, 5.2], [3.9, 3.4, 4.3], [4.5, 3.4, 2.9], [5.2, 2.9, 1.8], [5.8, 2.3, 1.2], [7.7, 2.3, 1.2]];
+      : [[0, 5, 5], [2.8, 5, 5], [3.4, 4.2, 5.7], [4.4, 0.7, 5.5], [7.7, 0.7, 5.5]];
+    var kDW = ch === 'C' ? [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.5, 4.0, 3.5], [4.2, 3.7, 2.5], [5.2, 3.4, 1.5], [6.0, 1.9, 1.3], [6.75, 1.6, 1.2], [7.7, 1.6, 1.2]] : ch === 'A' ? [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.5, 4.4, 4.9], [4.2, 4.1, 5.6], [4.8, 3.3, 5.4], [5.4, 2.6, 3.9], [5.9, 2.2, 2.6], [7.7, 2.2, 2.6]]
+      : [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.5, 4.3, 5.2], [4.4, 1.7, 5.6], [7.7, 1.7, 5.6]];
+    var kDT = ch === 'C' ? [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [3.0, 3.4, 5.0], [3.6, 3.2, 4.7], [4.4, 1.0, 4.5], [7.7, 1.0, 4.5]] : ch === 'A' ? [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [4.0, 3.3, 5.2], [4.8, 2.9, 4.2], [5.5, 2.4, 3.0], [7.7, 2.4, 3.0]]
+      : [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [3.3, 3.3, 5.2], [3.9, 3.4, 4.3], [4.6, 3.4, 2.9], [5.4, 2.9, 1.8], [6.1, 2.3, 1.2], [7.7, 2.3, 1.2]];
     function P(k, S, tt) { var p = kp(k, Math.min(tt, 7.7)); if (tt > 7.7) { var r = sstep(7.7, 9.0, tt); p = [p[0] + (S[0] - p[0]) * r, p[1] + (S[1] - p[1]) * r]; } return p; }
     var p1 = P(kA1, TP, t), p2 = P(kA2, WP, t), pw = P(kDW, DW0, t), pt = P(kDT, DT0, t);
     function look(k, S, def) { var a = P(k, S, t), b = P(k, S, t + 0.25); return Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.06 ? b : def; }
-    var l1 = look(kA1, TP, (ch === 'A' && t >= 2.3) || (ch === 'B' && t >= 2.3 && t < 2.9) ? pw : p2), l2 = look(kA2, WP, ch === 'B' && t > 3.3 ? p1 : [0, 0]), lw = look(kDW, DW0, p2), lt = look(kDT, DT0, p1);
+    var l1 = look(kA1, TP, (ch === 'A' && t >= 2.3) || (ib && t >= 2.3 && t < 2.9) ? pw : p2), l2 = look(kA2, WP, ib && t > 3.3 ? p1 : [0, 0]), lw = look(kDW, DW0, ch === 'C' && t > 2.8 ? p1 : p2), lt = look(kDT, DT0, ch === 'C' && t > 2.6 ? p2 : p1);
     if (t < 1.0) l2 = TP;
     if (t < 1.5 && t >= 0.9) l1 = WP;
     /* modos */
     var m1 = 'ball', m2 = 'ask', j1 = 0, j2 = 0, jw = 0, jt = 0;
     if (t < 0.9) m1 = 'ball'; else if (t < 1.5) m1 = 'pass'; else if (t < 2.4) m1 = 'run';
     else if (ch === 'A') m1 = t < 4.4 ? 'screen' : (t < 7.2 ? 'ask' : 'run');
-    else { m1 = t < 2.85 ? 'screen' : t < 4.2 ? 'run' : t < 4.9 ? 'ask' : t < 5.7 ? 'ball' : t < 6.05 ? 'up' : t < 6.6 ? 'high' : 'run'; j1 = (t > 5.7 && t < 6.45) ? Math.sin(Math.PI * (t - 5.7) / 0.75) : 0; }
+    else { m1 = t < 2.85 ? 'screen' : t < 4.6 ? 'run' : t < 5.2 ? 'ask' : t < 6.0 ? 'ball' : t < 6.35 ? 'up' : t < 6.8 ? 'high' : 'run'; j1 = (t > 6.0 && t < 6.75) ? Math.sin(Math.PI * (t - 6.0) / 0.75) : 0; }
     var drb = false;
     if (t < 1.5) m2 = 'ask'; else m2 = 'ball';
     if (ch === 'A') { if (t >= 2.7 && t < 4.9) { m2 = 'dribble'; drb = true; } else if (t >= 5.7 && t < 6.05) m2 = 'up'; else if (t >= 6.05 && t < 6.6) m2 = 'high'; else if (t >= 6.6) m2 = 'run'; j2 = (t > 5.7 && t < 6.45) ? Math.sin(Math.PI * (t - 5.7) / 0.75) : 0; jw = (t > 5.95 && t < 6.45) ? 0.5 * Math.sin(Math.PI * (t - 5.95) / 0.5) : 0; }
-    else { if (t >= 2.8 && t < 3.8) { m2 = 'dribble'; drb = true; } else if (t >= 4.25 && t < 4.9) m2 = 'pass'; else if (t >= 4.9) m2 = 'rest'; jt = (t > 5.95 && t < 6.45) ? 0.5 * Math.sin(Math.PI * (t - 5.95) / 0.5) : 0; }
+    else { if (t >= 2.8 && t < 4.4) { m2 = 'dribble'; drb = true; } else if (t >= 4.65 && t < 5.25) m2 = 'pass'; else if (t >= 5.25) m2 = 'rest'; if (t > 6.25 && t < 6.75) { var jj = 0.5 * Math.sin(Math.PI * (t - 6.25) / 0.5); if (ch === 'C') jw = jj; else jt = jj; } }
     if (t < 0.1) V.hand = null;
     if (drb) { var hv0 = P(kA2, WP, t), hv1 = P(kA2, WP, t + 0.2), hdx = -hv0[0], hdz = -hv0[1], hdl = Math.hypot(hdx, hdz) || 1, rx = -hdz / hdl, rz = hdx / hdl, lv = (hv1[0] - hv0[0]) * rx + (hv1[1] - hv0[1]) * rz;
       if (Math.abs(lv) > 0.12 || !V.hand) V.hand = lv > 0 ? 'R' : 'L'; }                      // se bota con la mano del lado hacia el que se va
@@ -1164,16 +1165,16 @@
       else shot(A2, 6.05, 6.4, 6.8);
     } else {
       if (t < 2.8) mid(A2, bp);
-      else if (t < 3.8) tw(A2, V.hand === 'L' ? -0.42 : 0.42, dbY, -0.55, bp);
-      else if (t < 4.3) mid(A2, bp);
-      else if (t < 4.85) flight(A2, A1, 4.3, 4.85, 0.2);
-      else if (t < 6.05) mid(A1, bp);
-      else shot(A1, 6.05, 6.4, 6.8);
+      else if (t < 4.4) tw(A2, V.hand === 'L' ? -0.42 : 0.42, dbY, -0.55, bp);
+      else if (t < 4.7) mid(A2, bp);
+      else if (t < 5.2) flight(A2, A1, 4.7, 5.2, 0.2);
+      else if (t < 6.35) mid(A1, bp);
+      else shot(A1, 6.35, 6.7, 7.1);
     }
     ballMesh.visible = vis; shadow.visible = vis;
     V.pop = Math.min(1, (V.pop === undefined ? 1 : V.pop) + dt * 6);
     ballMesh.scale.setScalar(RB * (0.4 + 0.6 * V.pop)); ballMesh.position.copy(bp);
-    if ((t > 1.0 && t < 1.5) || (t > 4.3 && t < 4.85 && ch === 'B')) ballMesh.rotation.x -= dt * 9;
+    if ((t > 1.0 && t < 1.5) || (t > 4.7 && t < 5.2 && ib)) ballMesh.rotation.x -= dt * 9;
     shadow.position.set(bp.x, 0.012, bp.z); shadow.scale.setScalar(RB * (1.1 + Math.max(0, bp.y) * 0.04)); shadow.material.opacity = 0.32 / (1 + Math.max(0, bp.y) * 0.35);
     aimDots.visible = false; pBall.copy(bp);
     if (TWO.rings) TWO.rings.forEach(function (m) { m.visible = false; });
@@ -1194,6 +1195,7 @@
       if (camera.view && camera.view.enabled) camera.clearViewOffset();
       if (acad.prev !== 'court') setMode('logo'); else { newBall(true); hud.hidden = false; hudText(); }
     },
+    twoCut: function (c) { acad.twoCut = c; },
     twoBall: function (n) { acad.twoBall = n; if (acad.two) acad.two.ball = n; },
     playScreen: function (o) { o = o || {}; acad.pass = null; acad.piv = null; acad.two = null; acad.scr = { t: 0, run: true, pop: 1, choice: o.choice === 'ask' ? null : (o.choice || 'A'), ask: o.choice === 'ask', alt: o.choice === 'alt', nt: 0 }; acad.passOrbit = false; acad.midZ = 4.4; oYaw = -0.2; oPitch = 0.5; oZoom = 0.45; },
     scrChoose: function (c) { if (acad.scr) { acad.scr.choice = c; } },
@@ -2134,9 +2136,9 @@
   function viewTwo() {
     stopAnim();
     body.innerHTML = '<div class="acopts"><button type="button" id="acTD" aria-pressed="' + !twoPlace + '">Demostración</button><button type="button" id="acTP" aria-pressed="' + twoPlace + '">Colócalos tú</button></div>' +
-      (twoPlace ? '<p class="acn"><b>Arrastra el 1 y el 2</b> a donde quieras sobre la pista. Los defensores se colocan solos entre cada atacante y la canasta. <b>Toca a un jugador</b> (o usa los botones) para darle el balón; su aro se pone naranja. Con <b>¡Jugar!</b>, el que tiene el balón pasa y corta a canasta, y recibe de vuelta.</p>' +
+      (twoPlace ? '<p class="acn"><b>Arrastra el 1 y el 2</b> a donde quieras sobre la pista. Los defensores se colocan solos entre cada atacante y la canasta. <b>Toca a un jugador</b> (o usa los botones) para darle el balón; su aro se pone naranja. <b>Tú decides por dónde corta</b>: por el centro de la zona o por la línea de fondo. El que tiene el balón pasa, corta a canasta y recibe de vuelta.</p>' +
         '<div class="acopts"><button type="button" id="acB1" aria-pressed="' + (twoBall === 1) + '">Balón: jugador 1</button><button type="button" id="acB2" aria-pressed="' + (twoBall === 2) + '">Balón: jugador 2</button></div>' +
-        '<div class="acopts"><button type="button" id="acGo" class="primary">¡Jugar!</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>'
+        '<div class="acopts"><button type="button" id="acGo" class="primary">Corta por el centro de la zona</button><button type="button" id="acGoB" class="primary">Corta por la línea de fondo</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>'
       : '<p class="acn"><b>2 atacantes (azul)</b> contra <b>2 defensores (rojo)</b>. Tú eres el <b>1</b>, con el balón a 45° de la canasta; el <b>2</b> espera arriba, fuera del triple.</p>' +
         '<div class="acq">Pasa y corta</div><ol class="acs">' +
         '<li>El <b>1</b> pasa al <b>2</b> (arriba, fuera del triple) y <b>no se queda parado</b>.</li>' +
@@ -2144,13 +2146,15 @@
         '<li>El <b>2</b> le devuelve el pase <b>al hueco</b>, por delante del cortador, y el <b>1</b> recibe en carrera y termina con una <b>bandeja</b>.</li></ol>' +
         '<div class="acopts"><button type="button" id="acRep">Ver otra vez</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>');
     bindSlow();
+    A.twoCut('center');
     A.stop(); A.speed(slow ? 0.45 : 1); A.twoBall(twoBall); A.playTwo({ place: twoPlace });
     var b1 = document.getElementById('acB1'), b2 = document.getElementById('acB2');
     if (b1) b1.onclick = function () { A.twoBall(1); twoBall = 1; b1.setAttribute('aria-pressed', true); b2.setAttribute('aria-pressed', false); };
     if (b2) b2.onclick = function () { A.twoBall(2); twoBall = 2; b2.setAttribute('aria-pressed', true); b1.setAttribute('aria-pressed', false); };
     document.getElementById('acTD').onclick = function () { twoPlace = false; viewTwo(); };
     document.getElementById('acTP').onclick = function () { twoPlace = true; viewTwo(); };
-    var g = document.getElementById('acGo'); if (g) g.onclick = function () { A.speed(slow ? 0.45 : 1); A.twoGo(); };
+    var g = document.getElementById('acGo'); if (g) g.onclick = function () { A.twoCut('center'); A.speed(slow ? 0.45 : 1); A.twoGo(); };
+    var gb = document.getElementById('acGoB'); if (gb) gb.onclick = function () { A.twoCut('base'); A.speed(slow ? 0.45 : 1); A.twoGo(); };
     var rp = document.getElementById('acRep'); if (rp) rp.onclick = function () { A.stop(); A.speed(slow ? 0.45 : 1); A.playTwo({ place: false }); };
   }
 
@@ -2159,12 +2163,13 @@
     stopAnim();
     var ask = scrMode === 'ask';
     body.innerHTML = '<p class="acn">El <b>1</b> (arriba) pasa al <b>2</b> (a 45°) y va a hacerle un <b>bloqueo al defensor del balón</b>. Después, el 2 decide.</p>' +
-      '<div class="acopts"><button type="button" data-m="A" aria-pressed="' + (scrMode === 'A') + '">Opción A: bota a canasta</button><button type="button" data-m="B" aria-pressed="' + (scrMode === 'B') + '">Opción B: pase al que bloquea</button><button type="button" data-m="alt" aria-pressed="' + (scrMode === 'alt') + '">Las dos</button><button type="button" data-m="ask" aria-pressed="' + ask + '">Decido yo</button></div>' +
-      (ask ? '<p class="acn"><b>La jugada se para tras el bloqueo.</b> ¿Qué hace el 2?</p><div class="acopts"><button type="button" id="acCA" class="primary">Bota a canasta (paso 0)</button><button type="button" id="acCB" class="primary">Pasa al que bloqueó</button></div>' : '') +
+      '<div class="acopts"><button type="button" data-m="A" aria-pressed="' + (scrMode === 'A') + '">Opción A: bota a canasta</button><button type="button" data-m="B" aria-pressed="' + (scrMode === 'B') + '">Opción B: pase al que bloquea</button><button type="button" data-m="C" aria-pressed="' + (scrMode === 'C') + '">Opción C: cambio de defensores</button><button type="button" data-m="alt" aria-pressed="' + (scrMode === 'alt') + '">Las dos</button><button type="button" data-m="ask" aria-pressed="' + ask + '">Decido yo</button></div>' +
+      (ask ? '<p class="acn"><b>La jugada se para tras el bloqueo.</b> ¿Qué hace el 2?</p><div class="acopts"><button type="button" id="acCA" class="primary">Bota a canasta (paso 0)</button><button type="button" id="acCB" class="primary">Pasa al que bloqueó</button><button type="button" id="acCC" class="primary">Cambio de defensores</button></div>' : '') +
       '<ol class="acs">' +
       '<li>El <b>1</b> pasa al ala y corre a <b>bloquear</b>: se coloca junto al defensor del balón, con los pies abiertos y los brazos cruzados, <b>quieto</b>.</li>' +
       '<li><b>Opción A:</b> el 2 usa el bloqueo, <b>bota hacia canasta</b>, recoge el balón (<b>paso 0</b>), da dos pasos y termina en bandeja.</li>' +
-      '<li><b>Opción B:</b> el que bloquea se <b>abre hacia la línea de fondo</b>, el 2 le <b>pasa</b> y él termina en bandeja.</li></ol>' +
+      '<li><b>Opción B:</b> el que bloquea se <b>abre hacia la línea de fondo</b>, el 2 le <b>pasa</b> y él termina en bandeja.</li>' +
+      '<li><b>Opción C (cambio):</b> en el bloqueo los defensores <b>se intercambian</b>: el defensor del 1 (<b>A</b>) se queda con el 2 y el defensor del 2 (<b>B</b>) pasa a defender al 1.</li></ol>' +
       '<div class="acopts"><button type="button" id="acRep">Ver otra vez</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>';
     bindSlow();
     A.stop(); A.speed(slow ? 0.45 : 1); A.playScreen({ choice: scrMode });
@@ -2172,6 +2177,7 @@
     var ca = document.getElementById('acCA'), cb = document.getElementById('acCB');
     if (ca) ca.onclick = function () { A.scrChoose('A'); };
     if (cb) cb.onclick = function () { A.scrChoose('B'); };
+    var cc = document.getElementById('acCC'); if (cc) cc.onclick = function () { A.scrChoose('C'); };
     document.getElementById('acRep').onclick = function () { A.stop(); A.speed(slow ? 0.45 : 1); A.playScreen({ choice: scrMode }); };
   }
 
