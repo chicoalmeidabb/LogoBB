@@ -244,7 +244,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v4.1',  CAMH = 2.9, R3 = 6.75, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v4.2',  CAMH = 2.9, R3 = 6.75, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -1032,9 +1032,9 @@
     function unit(a, b) { var dx = b[0] - a[0], dz = b[1] - a[1], d = Math.hypot(dx, dz) || 1; return [dx / d, dz / d]; }
     var u1h = unit(S1, H0), u2h = unit(S2, H0);
     var SD1 = [S1[0] + u1h[0] * 1.15, S1[1] + u1h[1] * 1.15], SD2 = [S2[0] + u2h[0] * 1.1, S2[1] + u2h[1] * 1.1];
-    var sg = S1[0] >= 0 ? 1 : -1, LD = [0.55 * sg, 0.6], dS = Math.max(0.5, Math.hypot(S1[0] - LD[0], S1[1] - LD[1]));
-    function along(r) { return mix(S1, LD, Math.max(0, Math.min(1, 1 - r / dS))); }
-    var RR = along(1.95), P1 = along(1.1), P2 = along(0.58);
+    var sg = S1[0] >= 0 ? 1 : -1, LD = [0.55 * sg, 0.6], cutB0 = acad.twoCut === 'base', CS = cutB0 ? S1 : [0.6 * sg, 3.9], dS = Math.max(0.5, Math.hypot(CS[0] - LD[0], CS[1] - LD[1]));
+    function along(r) { return mix(CS, LD, Math.max(0, Math.min(1, 1 - r / dS))); }
+    var RR = cutB0 ? along(1.95) : CS, P1 = along(1.1), P2 = along(0.58);
     var cutB = acad.twoCut === 'base', FK = cutB ? [S1[0] - 0.8 * sg, S1[1] + 0.7] : [S1[0] + 0.9 * sg, S1[1] - 1.2];                                       // amago hacia la línea de fondo
     function p1f(tt) {
       if (tt < 1.65) return S1;
@@ -1049,7 +1049,7 @@
     var cd = unit(S1, LD), nx = -cd[1], nz = cd[0];
     if (nx * (S2[0] - S1[0]) + nz * (S2[1] - S1[1]) < 0) { nx = -nx; nz = -nz; }
     if (cutB) { nx = -nx; nz = -nz; }                    // el corte se abre hacia el lado del balón: pasa POR DELANTE del defensor
-    var lat = 1.15 * Math.sin(Math.PI * Math.max(0, Math.min(1, (t - 2.15) / 1.6)));
+    var lat = (cutB ? 1.15 : 0) * Math.sin(Math.PI * Math.max(0, Math.min(1, (t - 2.15) / 1.6)));
     var pc = p1f(t), p1 = t > 6.4 ? mix(LD, S1, ret) : [pc[0] + nx * lat, pc[1] + nz * lat];
     jmp1 = (t > 4.15 && t < 4.9) ? Math.sin(Math.PI * (t - 4.15) / 0.75) : 0;
     if (t < 0.9) m1 = 'ball'; else if (t < 1.65) m1 = 'pass'; else if (t < 3.2) m1 = 'ask'; else if (t < 4.15) m1 = 'ball'; else if (t < 4.5) m1 = 'up'; else if (t < 5.2) m1 = 'high'; else m1 = 'run';
