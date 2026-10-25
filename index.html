@@ -244,7 +244,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v3.9',  CAMH = 2.9, R3 = 6.75, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v4.0',  CAMH = 2.9, R3 = 6.75, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -919,7 +919,7 @@
     handInit = false;
   }
   /* ---------- 2 para 2: pasa y corta (2 atacantes y 2 defensores) ---------- */
-  var TWO_T = 7.6, TWO = null;
+  var TWO_T = 8.2, TWO = null;
   function mkLabel(txt, bg) {
     var cv = document.createElement('canvas'); cv.width = cv.height = 128; var c = cv.getContext('2d');
     c.fillStyle = bg; c.beginPath(); c.arc(64, 64, 58, 0, 6.2832); c.fill(); c.lineWidth = 6; c.strokeStyle = '#fff'; c.stroke();
@@ -994,7 +994,7 @@
       if (mode === 'ball') { lx = 0.27 * sd; ly = 1.85 + crouch; lz = -0.46; }
       else if (mode === 'run') { lx = 0.42 * sd; ly = 1.5 + 0.2 * Math.abs(swing); lz = -0.2 + 0.45 * (i === 0 ? swing : -swing); }
       else if (mode === 'guard') { lx = 0.66 * sd; ly = 1.95 + 0.1 * Math.sin(time * 6 + i * 2); lz = -0.55 + 0.1 * Math.sin(time * 5 + i); }
-      else if (mode === 'dribble') { if (i === 1) { lx = 0.42; ly = o.hy || 1.7; lz = -0.55; } else { lx = -0.45; ly = 1.75; lz = -0.45; } }
+      else if (mode === 'dribble') { if (i === (o.hand === 'L' ? 0 : 1)) { lx = 0.42 * sd; ly = o.hy || 1.7; lz = -0.55; } else { lx = 0.45 * sd; ly = 1.75; lz = -0.45; } }
       else if (mode === 'screen') { lx = 0.15 * sd; ly = 1.25; lz = -0.35; }
       else if (mode === 'ask') { lx = 0.2 * sd; ly = 2.1; lz = -0.95; }
       else if (mode === 'pass') { lx = 0.2 * sd; ly = 2.15; lz = -1.45; }
@@ -1035,38 +1035,39 @@
     var sg = S1[0] >= 0 ? 1 : -1, LD = [0.55 * sg, 0.6], dS = Math.max(0.5, Math.hypot(S1[0] - LD[0], S1[1] - LD[1]));
     function along(r) { return mix(S1, LD, Math.max(0, Math.min(1, 1 - r / dS))); }
     var RR = along(1.95), P1 = along(1.1), P2 = along(0.58);
+    var FK = [S1[0] + 0.9 * sg, S1[1] - 1.2];                                       // amago hacia la línea de fondo
     function p1f(tt) {
       if (tt < 1.65) return S1;
-      if (tt < 2.85) { var uu = (tt - 1.65) / 1.2; return mix(S1, RR, uu * (2 - uu) * 0.5 + uu * 0.5); }
-      if (tt < 3.25) return mix(RR, P1, (tt - 2.85) / 0.4);
-      if (tt < 3.65) return mix(P1, P2, (tt - 3.25) / 0.4);
-      if (tt < 4.4) return mix(P2, LD, sstep(3.65, 4.4, tt));
+      if (tt < 2.15) return mix(S1, FK, sstep(1.65, 2.15, tt));
+      if (tt < 3.35) { var uu = (tt - 2.15) / 1.2; return mix(FK, RR, uu * (2 - uu) * 0.5 + uu * 0.5); }
+      if (tt < 3.75) return mix(RR, P1, (tt - 3.35) / 0.4);
+      if (tt < 4.15) return mix(P1, P2, (tt - 3.75) / 0.4);
+      if (tt < 4.9) return mix(P2, LD, sstep(4.15, 4.9, tt));
       return LD;
     }
-    var ret = sstep(5.9, 7.2, t), m1 = 'ball', u, jmp1 = 0;
+    var ret = sstep(6.4, 7.7, t), m1 = 'ball', u, jmp1 = 0;
     var cd = unit(S1, LD), nx = -cd[1], nz = cd[0];
     if (nx * (S2[0] - S1[0]) + nz * (S2[1] - S1[1]) < 0) { nx = -nx; nz = -nz; }                    // el corte se abre hacia el lado del balón: pasa POR DELANTE del defensor
-    var lat = 1.15 * Math.sin(Math.PI * Math.max(0, Math.min(1, (t - 1.65) / 1.6)));
-    var pc = p1f(t), p1 = t > 5.9 ? mix(LD, S1, ret) : [pc[0] + nx * lat, pc[1] + nz * lat];
-    jmp1 = (t > 3.65 && t < 4.4) ? Math.sin(Math.PI * (t - 3.65) / 0.75) : 0;
-    if (t < 0.9) m1 = 'ball'; else if (t < 1.65) m1 = 'pass'; else if (t < 2.7) m1 = 'ask'; else if (t < 3.65) m1 = 'ball'; else if (t < 4.0) m1 = 'up'; else if (t < 4.7) m1 = 'high'; else m1 = 'run';
-    if (t > 5.9) m1 = 'run';
+    var lat = 1.15 * Math.sin(Math.PI * Math.max(0, Math.min(1, (t - 2.15) / 1.6)));
+    var pc = p1f(t), p1 = t > 6.4 ? mix(LD, S1, ret) : [pc[0] + nx * lat, pc[1] + nz * lat];
+    jmp1 = (t > 4.15 && t < 4.9) ? Math.sin(Math.PI * (t - 4.15) / 0.75) : 0;
+    if (t < 0.9) m1 = 'ball'; else if (t < 1.65) m1 = 'pass'; else if (t < 3.2) m1 = 'ask'; else if (t < 4.15) m1 = 'ball'; else if (t < 4.5) m1 = 'up'; else if (t < 5.2) m1 = 'high'; else m1 = 'run';
+    if (t > 6.4) m1 = 'run';
     var p2 = S2, m2 = 'ask', f2 = [S1[0], S1[1]];
     if (t > 1.45) { m2 = 'ball'; f2 = [p1[0], p1[1]]; }
-    if (t > 2.05 && t < 2.8) m2 = 'pass';
-    if (t > 2.8) m2 = 'rest';
-    var md = 'guard', off1 = [SD1[0] - S1[0], SD1[1] - S1[1]], k1 = 1 - sstep(1.55, 3.0, t), q1 = p1f(t - 0.6);
+    if (t > 2.6 && t < 3.35) m2 = 'pass';
+    if (t > 3.35) m2 = 'rest';
+    var md = 'guard', off1 = [SD1[0] - S1[0], SD1[1] - S1[1]], k1 = 1 - sstep(2.0, 3.6, t), q1 = p1f(t - 0.4);
     var pd1 = [q1[0] + off1[0] * k1, q1[1] + off1[1] * k1];
-    if (t > 5.9) pd1 = mix(LD, SD1, ret);
-    var jd1 = (t > 3.95 && t < 4.5) ? 0.55 * Math.sin(Math.PI * (t - 3.95) / 0.55) : 0;
-    var hp = sstep(2.2, 3.4, t) * 0.45, pd2 = [SD2[0] + 0.15 * Math.sin(t * 2.6) + u2h[0] * hp, SD2[1] + 0.05 * Math.sin(t * 3.1) + u2h[1] * hp];
-    if (t > 5.9) pd2 = mix(pd2, SD2, ret);
+    if (t > 6.4) pd1 = mix(LD, SD1, ret);
+    var jd1 = (t > 4.45 && t < 5.0) ? 0.55 * Math.sin(Math.PI * (t - 4.45) / 0.55) : 0;
+    var hp = sstep(2.7, 3.9, t) * 0.45, pd2 = [SD2[0] + 0.15 * Math.sin(t * 2.6) + u2h[0] * hp, SD2[1] + 0.05 * Math.sin(t * 3.1) + u2h[1] * hp];
+    if (t > 6.4) pd2 = mix(pd2, SD2, ret);
     /* hacia dónde miran */
     var look1 = t < 0.9 ? [0, 0] : t < 1.65 ? S2 : (t < 3.65 ? [0, 0] : [0, 0]);
-    if (t >= 2.7 && t < 3.0) look1 = [0, 0];
     twoActor(T.a1, dt, time, ps, p1[0], p1[1], look1[0], look1[1], m1, { stance: m1 === 'ball' && t < 0.9 ? 0.6 : 0.2, jump: jmp1 });
     twoActor(T.a2, dt, time, ps, p2[0], p2[1], f2[0], f2[1], m2, { stance: 0.5 });
-    twoActor(T.d1, dt, time, ps, pd1[0], pd1[1], t < 1.55 ? p1[0] : (t < 3.3 ? S2[0] : p1[0]), t < 1.55 ? p1[1] : (t < 3.3 ? S2[1] : p1[1]), jd1 > 0 ? 'high' : md, { stance: 0.9, jump: jd1 });
+    twoActor(T.d1, dt, time, ps, pd1[0], pd1[1], t < 1.55 ? p1[0] : (t < 3.8 ? S2[0] : p1[0]), t < 1.55 ? p1[1] : (t < 3.8 ? S2[1] : p1[1]), jd1 > 0 ? 'high' : md, { stance: 0.9, jump: jd1 });
     twoActor(T.d2, dt, time, ps, pd2[0], pd2[1], p2[0], p2[1], md, { stance: 0.9 });
     /* balón */
     var bx, by, bz, A1 = T.a1, A2 = T.a2;
@@ -1074,16 +1075,16 @@
     var bp = tpV, ba;
     if (t < 1.0) mid(A1, bp);
     else if (t < 1.55) { mid(A1, bp); ba = mid(A2, tpV2); var f = sstep(1.0, 1.55, t); bp.lerp(ba, f); bp.y += 0.25 * Math.sin(Math.PI * f); }
-    else if (t < 2.2) mid(A2, bp);
-    else if (t < 2.75) { mid(A2, bp); ba = mid(A1, tpV2); var f3 = sstep(2.2, 2.75, t); bp.lerp(ba, f3); bp.y += 0.15 * Math.sin(Math.PI * f3); }
-    else if (t < 4.0) mid(A1, bp);
-    else if (t < 4.35) { bp.set(A1.h[1].x, A1.h[1].y + 0.3, A1.h[1].z); var f4 = (t - 4.0) / 0.35; bp.x += (0 - bp.x) * f4; bp.z += (0 - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + 0.5 * Math.sin(Math.PI * f4); }
-    else if (t < 4.75) { var f5 = (t - 4.35) / 0.4; bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, 0); }
+    else if (t < 2.75) mid(A2, bp);
+    else if (t < 3.3) { mid(A2, bp); ba = mid(A1, tpV2); var f3 = sstep(2.75, 3.3, t); bp.lerp(ba, f3); bp.y += 0.15 * Math.sin(Math.PI * f3); }
+    else if (t < 4.5) mid(A1, bp);
+    else if (t < 4.85) { bp.set(A1.h[1].x, A1.h[1].y + 0.3, A1.h[1].z); var f4 = (t - 4.5) / 0.35; bp.x += (0 - bp.x) * f4; bp.z += (0 - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + 0.5 * Math.sin(Math.PI * f4); }
+    else if (t < 5.25) { var f5 = (t - 4.85) / 0.4; bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, 0); }
     else bp.set(0, 0.0, 0);
-    ballMesh.visible = t < 4.75; shadow.visible = t < 4.75;
+    ballMesh.visible = t < 5.25; shadow.visible = t < 5.25;
     V.pop = Math.min(1, (V.pop === undefined ? 1 : V.pop) + dt * 6);
     ballMesh.scale.setScalar(RB * (0.4 + 0.6 * V.pop)); ballMesh.position.copy(bp);
-    if ((t > 1.0 && t < 1.55) || (t > 2.2 && t < 2.75) || (t > 4 && t < 4.35)) ballMesh.rotation.x -= dt * 9;
+    if ((t > 1.0 && t < 1.55) || (t > 2.75 && t < 3.3) || (t > 4.5 && t < 4.85)) ballMesh.rotation.x -= dt * 9;
     shadow.position.set(bp.x, 0.012, bp.z); shadow.scale.setScalar(RB * (1.1 + bp.y * 0.04)); shadow.material.opacity = 0.32 / (1 + bp.y * 0.35);
     aimDots.visible = false; pBall.copy(bp);
     if (!TWO.rings) { TWO.rings = [0, 1].map(function (q) { var m = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.92, 40), new THREE.MeshBasicMaterial({ color: q ? 0x1b9ad6 : 0xf59e0b, transparent: true, opacity: 0.9, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.position.y = 0.03; m.renderOrder = 3; court.add(m); return m; }); }
@@ -1115,32 +1116,35 @@
     pony.visible = who.sex === 'f'; pony.rotation.x = -0.3; player.visible = pShadow.visible = true; dP.visible = dShadow.visible = true; dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = ps > 0.98;
     T.a1.lab = T.labs[0]; T.a2.lab = T.labs[1];
     var TP = [0, 7.5], WP = [5, 5], DT0 = [0.15, 6.4], DW0 = [4.2, 4.2];
-    var kA1 = ch === 'A' ? [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.25, 5.75], [4.4, 4.25, 5.75], [5.2, 3.6, 5.0], [7.7, 3.6, 5.0]]
-      : [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.25, 5.75], [2.85, 4.25, 5.75], [3.5, 3.7, 4.3], [4.0, 2.6, 2.4], [4.35, 2.05, 1.8], [4.7, 1.4, 1.2], [5.45, 0.9, 0.85], [7.7, 0.9, 0.85]];
-    var kA2 = ch === 'A' ? [[0, 5, 5], [2.8, 5, 5], [3.15, 5.3, 6.1], [3.6, 4.5, 6.9], [4.1, 3.4, 6.5], [4.5, 2.95, 5.5], [4.9, 2.6, 4.5], [5.3, 2.0, 3.3], [5.7, 1.4, 2.2], [6.45, 1.0, 1.2], [7.7, 1.0, 1.2]]
-      : [[0, 5, 5], [2.8, 5, 5], [3.3, 4.3, 5.2], [7.7, 4.3, 5.2]];
-    var kDW = ch === 'A' ? [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.6, 4.1, 4.5], [4.5, 3.9, 4.6], [5.2, 3.0, 3.6], [5.9, 2.3, 2.5], [7.7, 2.3, 2.5]]
-      : [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.3, 4.2, 4.9], [4.0, 4.0, 4.9], [7.7, 4.0, 4.9]];
-    var kDT = ch === 'A' ? [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.5, 5.2], [4.0, 3.5, 5.2], [4.8, 3.0, 4.0], [5.5, 2.4, 2.8], [7.7, 2.4, 2.8]]
-      : [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.5, 5.2], [3.3, 3.5, 5.2], [3.9, 3.3, 4.4], [4.4, 3.1, 3.6], [5.0, 2.7, 3.0], [5.5, 2.4, 2.4], [7.7, 2.4, 2.4]];
+    var kA1 = ch === 'A' ? [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.0, 5.0], [4.4, 4.0, 5.0], [5.2, 3.4, 4.3], [7.7, 3.4, 4.3]]
+      : [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.0, 5.0], [2.85, 4.0, 5.0], [3.5, 3.7, 3.9], [4.1, 3.4, 2.4], [4.6, 3.1, 1.3], [4.9, 3.0, 1.2], [5.3, 2.1, 1.0], [5.7, 1.35, 0.95], [6.4, 0.9, 0.85], [7.7, 0.9, 0.85]];
+    var kA2 = ch === 'A' ? [[0, 5, 5], [2.8, 5, 5], [3.15, 4.9, 5.9], [3.6, 4.1, 6.4], [4.1, 3.1, 6.0], [4.5, 2.6, 5.0], [4.9, 2.3, 4.0], [5.3, 1.9, 3.0], [5.7, 1.4, 2.1], [6.45, 1.0, 1.2], [7.7, 1.0, 1.2]]
+      : [[0, 5, 5], [2.8, 5, 5], [3.3, 4.8, 5.8], [3.8, 4.4, 5.6], [7.7, 4.4, 5.6]];
+    var kDW = ch === 'A' ? [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.5, 4.4, 4.9], [4.2, 4.1, 5.6], [4.8, 3.3, 5.4], [5.4, 2.6, 3.9], [5.9, 2.2, 2.6], [7.7, 2.2, 2.6]]
+      : [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.3, 4.2, 4.8], [3.9, 3.9, 4.8], [7.7, 3.9, 4.8]];
+    var kDT = ch === 'A' ? [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [4.0, 3.3, 5.2], [4.8, 2.9, 4.2], [5.5, 2.4, 3.0], [7.7, 2.4, 3.0]]
+      : [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [3.3, 3.3, 5.2], [3.9, 3.4, 4.3], [4.5, 3.4, 2.9], [5.2, 2.9, 1.8], [5.8, 2.3, 1.2], [7.7, 2.3, 1.2]];
     function P(k, S, tt) { var p = kp(k, Math.min(tt, 7.7)); if (tt > 7.7) { var r = sstep(7.7, 9.0, tt); p = [p[0] + (S[0] - p[0]) * r, p[1] + (S[1] - p[1]) * r]; } return p; }
     var p1 = P(kA1, TP, t), p2 = P(kA2, WP, t), pw = P(kDW, DW0, t), pt = P(kDT, DT0, t);
     function look(k, S, def) { var a = P(k, S, t), b = P(k, S, t + 0.25); return Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.06 ? b : def; }
-    var l1 = look(kA1, TP, p2), l2 = look(kA2, WP, ch === 'B' && t > 3.5 ? p1 : [0, 0]), lw = look(kDW, DW0, p2), lt = look(kDT, DT0, p1);
+    var l1 = look(kA1, TP, (ch === 'A' && t >= 2.3) || (ch === 'B' && t >= 2.3 && t < 2.9) ? pw : p2), l2 = look(kA2, WP, ch === 'B' && t > 3.3 ? p1 : [0, 0]), lw = look(kDW, DW0, p2), lt = look(kDT, DT0, p1);
     if (t < 1.0) l2 = TP;
     if (t < 1.5 && t >= 0.9) l1 = WP;
     /* modos */
     var m1 = 'ball', m2 = 'ask', j1 = 0, j2 = 0, jw = 0, jt = 0;
     if (t < 0.9) m1 = 'ball'; else if (t < 1.5) m1 = 'pass'; else if (t < 2.4) m1 = 'run';
     else if (ch === 'A') m1 = t < 4.4 ? 'screen' : (t < 7.2 ? 'ask' : 'run');
-    else { m1 = t < 2.85 ? 'screen' : t < 3.9 ? 'ask' : t < 4.7 ? 'ball' : t < 5.1 ? 'up' : t < 5.7 ? 'high' : 'run'; j1 = (t > 4.7 && t < 5.45) ? Math.sin(Math.PI * (t - 4.7) / 0.75) : 0; }
+    else { m1 = t < 2.85 ? 'screen' : t < 4.2 ? 'run' : t < 4.9 ? 'ask' : t < 5.7 ? 'ball' : t < 6.05 ? 'up' : t < 6.6 ? 'high' : 'run'; j1 = (t > 5.7 && t < 6.45) ? Math.sin(Math.PI * (t - 5.7) / 0.75) : 0; }
     var drb = false;
     if (t < 1.5) m2 = 'ask'; else m2 = 'ball';
     if (ch === 'A') { if (t >= 2.7 && t < 4.9) { m2 = 'dribble'; drb = true; } else if (t >= 5.7 && t < 6.05) m2 = 'up'; else if (t >= 6.05 && t < 6.6) m2 = 'high'; else if (t >= 6.6) m2 = 'run'; j2 = (t > 5.7 && t < 6.45) ? Math.sin(Math.PI * (t - 5.7) / 0.75) : 0; jw = (t > 5.95 && t < 6.45) ? 0.5 * Math.sin(Math.PI * (t - 5.95) / 0.5) : 0; }
-    else { if (t >= 2.8 && t < 3.3) { m2 = 'dribble'; drb = true; } else if (t >= 3.4 && t < 4.0) m2 = 'pass'; else if (t >= 4.0) m2 = 'rest'; jt = (t > 5.0 && t < 5.5) ? 0.5 * Math.sin(Math.PI * (t - 5.0) / 0.5) : 0; }
+    else { if (t >= 2.8 && t < 3.8) { m2 = 'dribble'; drb = true; } else if (t >= 4.25 && t < 4.9) m2 = 'pass'; else if (t >= 4.9) m2 = 'rest'; jt = (t > 5.95 && t < 6.45) ? 0.5 * Math.sin(Math.PI * (t - 5.95) / 0.5) : 0; }
+    if (t < 0.1) V.hand = null;
+    if (drb) { var hv0 = P(kA2, WP, t), hv1 = P(kA2, WP, t + 0.2), hdx = -hv0[0], hdz = -hv0[1], hdl = Math.hypot(hdx, hdz) || 1, rx = -hdz / hdl, rz = hdx / hdl, lv = (hv1[0] - hv0[0]) * rx + (hv1[1] - hv0[1]) * rz;
+      if (Math.abs(lv) > 0.12 || !V.hand) V.hand = lv > 0 ? 'R' : 'L'; }                      // se bota con la mano del lado hacia el que se va
     var dbY = RB + 1.7 * Math.abs(Math.cos(Math.PI * (t - (ch === 'A' ? 2.7 : 2.8)) / 0.4));
     twoActor(T.a1, dt, time, ps, p1[0], p1[1], l1[0], l1[1], m1, { stance: m1 === 'screen' ? 1 : 0.2, jump: j1 });
-    twoActor(T.a2, dt, time, ps, p2[0], p2[1], l2[0], l2[1], m2, { stance: m2 === 'ball' && t < 2.7 ? 0.5 : 0.2, jump: j2, hy: Math.max(1.2, Math.min(2.0, dbY + 0.35)) });
+    twoActor(T.a2, dt, time, ps, p2[0], p2[1], l2[0], l2[1], m2, { stance: m2 === 'ball' && t < 2.7 ? 0.5 : 0.2, jump: j2, hand: V.hand || 'R', hy: Math.max(1.2, Math.min(2.0, dbY + 0.35)) });
     twoActor(T.d1, dt, time, ps, pw[0], pw[1], lw[0], lw[1], jw > 0 ? 'high' : 'guard', { stance: 0.9, jump: jw });
     twoActor(T.d2, dt, time, ps, pt[0], pt[1], lt[0], lt[1], jt > 0 ? 'high' : 'guard', { stance: 0.9, jump: jt });
     /* balón */
@@ -1155,21 +1159,21 @@
     else if (t < 1.5) flight(A1, A2, 1.0, 1.5, 0.25);
     else if (ch === 'A') {
       if (t < 2.7) mid(A2, bp);
-      else if (t < 4.9) { tw(A2, 0.42, dbY, -0.55, bp); }
+      else if (t < 4.9) { tw(A2, V.hand === 'L' ? -0.42 : 0.42, dbY, -0.55, bp); }
       else if (t < 6.05) mid(A2, bp);
       else shot(A2, 6.05, 6.4, 6.8);
     } else {
       if (t < 2.8) mid(A2, bp);
-      else if (t < 3.3) tw(A2, 0.42, dbY, -0.55, bp);
-      else if (t < 3.55) mid(A2, bp);
-      else if (t < 4.0) flight(A2, A1, 3.55, 4.0, 0.2);
-      else if (t < 5.1) mid(A1, bp);
-      else shot(A1, 5.1, 5.45, 5.85);
+      else if (t < 3.8) tw(A2, V.hand === 'L' ? -0.42 : 0.42, dbY, -0.55, bp);
+      else if (t < 4.3) mid(A2, bp);
+      else if (t < 4.85) flight(A2, A1, 4.3, 4.85, 0.2);
+      else if (t < 6.05) mid(A1, bp);
+      else shot(A1, 6.05, 6.4, 6.8);
     }
     ballMesh.visible = vis; shadow.visible = vis;
     V.pop = Math.min(1, (V.pop === undefined ? 1 : V.pop) + dt * 6);
     ballMesh.scale.setScalar(RB * (0.4 + 0.6 * V.pop)); ballMesh.position.copy(bp);
-    if ((t > 1.0 && t < 1.5) || (t > 3.55 && t < 4.0 && ch === 'B')) ballMesh.rotation.x -= dt * 9;
+    if ((t > 1.0 && t < 1.5) || (t > 4.3 && t < 4.85 && ch === 'B')) ballMesh.rotation.x -= dt * 9;
     shadow.position.set(bp.x, 0.012, bp.z); shadow.scale.setScalar(RB * (1.1 + Math.max(0, bp.y) * 0.04)); shadow.material.opacity = 0.32 / (1 + Math.max(0, bp.y) * 0.35);
     aimDots.visible = false; pBall.copy(bp);
     if (TWO.rings) TWO.rings.forEach(function (m) { m.visible = false; });
