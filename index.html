@@ -244,7 +244,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v4.2',  CAMH = 2.9, R3 = 6.75, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v4.3',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -410,7 +410,7 @@
       });
     });
     /* tronco: capa de piel (hombros) + camiseta sin mangas */
-    var PJ = [[1.30, 0.28, 0.175], [1.55, 0.26, 0.162], [1.85, 0.33, 0.2], [2.08, 0.34, 0.205], [2.24, 0.255, 0.17], [2.34, 0.13, 0.1]];
+    var PJ = [[1.30, 0.28, 0.175], [1.55, 0.26, 0.162], [1.85, 0.33, 0.2], [2.08, 0.34, 0.205], [2.22, 0.315, 0.185], [2.30, 0.235, 0.15], [2.36, 0.152, 0.112]];
     var PS = [[1.30, 0.268, 0.165], [1.55, 0.245, 0.152], [1.85, 0.315, 0.19], [2.08, 0.325, 0.195], [2.24, 0.30, 0.17], [2.36, 0.14, 0.1]];
     body.add(shaped(PS, skin, 18));
     var torso = shaped(PJ, jc, 18); body.add(torso);
@@ -435,7 +435,7 @@
     /* cabeza */
     var head = part(new THREE.SphereGeometry(0.19, 32, 24), skin, 0, 2.73, 0); head.scale.set(0.88, 1.08, 1.0); body.add(head);
     var jaw = part(new THREE.SphereGeometry(0.13, 24, 16), skin, 0, 2.63, -0.04); jaw.scale.set(0.98, 0.85, 1.0); body.add(jaw);
-    var hair = part(new THREE.SphereGeometry(0.2, 32, 18, 0, Math.PI * 2, 0, 1.8), hairM, 0, 2.74, 0.006); hair.scale.set(0.9, 1.1, 1.04); hair.rotation.x = -0.42; body.add(hair);
+    var hair = part(new THREE.SphereGeometry(0.2, 32, 18, 0, Math.PI * 2, 0, 1.8), hairM, 0, 2.74, 0.006); hair.scale.set(0.9, 1.1, 1.04); hair.rotation.x = 0.42; body.add(hair);
     [-1, 1].forEach(function (sd) {
       var eye = part(new THREE.SphereGeometry(0.024, 12, 10), white, sd * 0.065, 2.735, -0.168); eye.scale.set(1.2, 0.8, 0.6); body.add(eye);
       body.add(part(new THREE.SphereGeometry(0.014, 10, 8), dark, sd * 0.065, 2.735, -0.18));
@@ -964,7 +964,7 @@
   function tw(R, lx, ly, lz, out) { var sn = Math.sin(R.yaw), cs = Math.cos(R.yaw); return out.set(R.root.position.x + lx * cs + lz * sn, ly + R.root.position.y, R.root.position.z - lx * sn + lz * cs); }
   /* posiciona a un jugador: x,z, mira a (fx,fz), modo de brazos y postura */
   function twoActor(R, dt, time, ps, x, z, fx, fz, mode, o) {
-    o = o || {};
+    o = o || {}; x *= KC; z *= KC; fx *= KC; fz *= KC;                  // posiciones de la jugada: campo más grande
     var dx = x - R.px, dz = z - R.pz, sp0 = R.init && dt > 1e-4 ? Math.hypot(dx, dz) / dt : 0; R.px = x; R.pz = z;
     if (sp0 > 9) sp0 = 0;
     R.spd += (sp0 - R.spd) * Math.min(1, dt * 10);
@@ -1089,7 +1089,7 @@
     shadow.position.set(bp.x, 0.012, bp.z); shadow.scale.setScalar(RB * (1.1 + bp.y * 0.04)); shadow.material.opacity = 0.32 / (1 + bp.y * 0.35);
     aimDots.visible = false; pBall.copy(bp);
     if (!TWO.rings) { TWO.rings = [0, 1].map(function (q) { var m = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.92, 40), new THREE.MeshBasicMaterial({ color: q ? 0x1b9ad6 : 0xf59e0b, transparent: true, opacity: 0.9, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.position.y = 0.03; m.renderOrder = 3; court.add(m); return m; }); }
-    TWO.rings.forEach(function (m, q) { var P = q ? V.s2 : V.s1; m.material.color.setHex((q ? 2 : 1) === (V.ball || 1) ? 0xf59e0b : 0x1b9ad6); m.visible = V.mode === 'place'; m.position.x = P[0]; m.position.z = P[1]; m.scale.setScalar(1 + 0.08 * Math.sin(time * 6)); });
+    TWO.rings.forEach(function (m, q) { var P = q ? V.s2 : V.s1; m.material.color.setHex((q ? 2 : 1) === (V.ball || 1) ? 0xf59e0b : 0x1b9ad6); m.visible = V.mode === 'place'; m.position.x = P[0] * KC; m.position.z = P[1] * KC; m.scale.setScalar(1 + 0.08 * Math.sin(time * 6)); });
     handInit = false;
   }
   /* ---------- Bloqueo directo: el de arriba pasa al ala, bloquea al defensor del balón y hay dos opciones ---------- */
@@ -1197,10 +1197,10 @@
     },
     twoCut: function (c) { acad.twoCut = c; },
     twoBall: function (n) { acad.twoBall = n; if (acad.two) acad.two.ball = n; },
-    playScreen: function (o) { o = o || {}; acad.pass = null; acad.piv = null; acad.two = null; acad.scr = { t: 0, run: true, pop: 1, choice: o.choice === 'ask' ? null : (o.choice || 'A'), ask: o.choice === 'ask', alt: o.choice === 'alt', nt: 0 }; acad.passOrbit = false; acad.midZ = 4.4; oYaw = -0.2; oPitch = 0.5; oZoom = 0.45; },
+    playScreen: function (o) { o = o || {}; acad.pass = null; acad.piv = null; acad.two = null; acad.scr = { t: 0, run: true, pop: 1, choice: o.choice === 'ask' ? null : (o.choice || 'A'), ask: o.choice === 'ask', alt: o.choice === 'alt', nt: 0 }; acad.passOrbit = false; acad.midZ = 4.4 * KC; oYaw = -0.2; oPitch = 0.5; oZoom = 0.36; },
     scrChoose: function (c) { if (acad.scr) { acad.scr.choice = c; } },
     twoGo: function () { var V = acad.two; if (V && V.custom) { V.mode = 'go'; V.t = 0; V.run = true; V.pop = 0; if (TWO) { TWO.a1.init = TWO.a2.init = TWO.d1.init = TWO.d2.init = false; TWO.a1.hi = TWO.a2.hi = TWO.d1.hi = TWO.d2.hi = false; } } },
-    playTwo: function (o) { o = o || {}; acad.scr = null; acad.twoPos = acad.twoPos || { s1: [5.0, 5.0], s2: [0.0, 7.5] }; acad.pass = null; acad.piv = null; acad.two = { t: 0, run: !o.place, loop: !o.place, custom: !!o.place, mode: o.place ? 'place' : 'demo', pop: 1, ball: acad.twoBall || 1, s1: o.place ? acad.twoPos.s1 : [5.0, 5.0], s2: o.place ? acad.twoPos.s2 : [0.0, 7.5] }; acad.passOrbit = false; acad.midZ = 3.9; oYaw = -0.2; oPitch = 0.5; oZoom = 0.45; },
+    playTwo: function (o) { o = o || {}; acad.scr = null; acad.twoPos = acad.twoPos || { s1: [5.0, 5.0], s2: [0.0, 7.5] }; acad.pass = null; acad.piv = null; acad.two = { t: 0, run: !o.place, loop: !o.place, custom: !!o.place, mode: o.place ? 'place' : 'demo', pop: 1, ball: acad.twoBall || 1, s1: o.place ? acad.twoPos.s1 : [5.0, 5.0], s2: o.place ? acad.twoPos.s2 : [0.0, 7.5] }; acad.passOrbit = false; acad.midZ = 3.9 * KC; oYaw = -0.2; oPitch = 0.5; oZoom = 0.36; },
     playPivot: function (type, o) { o = o || {}; acad.pass = null; acad.two = acad.scr = null; acad.piv = { type: type, t: 0, run: true, loop: true, pf: o.foot === 'R' ? 1 : 0, hInit: false, k: -2 }; acad.passOrbit = false; acad.midZ = PIV_Z; oYaw = 2.5; oPitch = 0.12; oZoom = 1.3; },
     playPass: function (type, o) { o = o || {}; acad.piv = null; acad.two = acad.scr = null; acad.pass = { type: type, t: 0, run: !o.manual, loop: o.loop !== false, pop: 1, manual: !!o.manual, state: 'ready', pull: 0, pullS: 0, fs: 1, leg: 0, hInit: false }; acad.passOrbit = false; acad.midZ = (PZ + RZ) / 2; oYaw = 1.2; oPitch = 0.1; oZoom = 0.58; },
     play: function (tokens, o) { o = o || {}; acad.piv = null; acad.two = acad.scr = null; if (acad.pass) { acad.pass = null; oYaw = 0.95; oZoom = 1; } acad.midZ = (acad.zStart + acad.zEnd) / 2; acadSetup(tokens); acad.loop = !!o.loop; acad.onTok = o.onTok || null; acad.onEnd = o.onEnd || null; acad.run = true; },
@@ -1234,7 +1234,7 @@
   }
   function defIdeal() {                 // punto donde marcaría un defensor perfecto: entre el tirador y el aro, algo ladeado
     var sx = ball.spawnX, sz = ball.spawnZ, d = Math.hypot(sx, sz) || 1;
-    dTgt.x = Math.max(-5, Math.min(5, sx - sx / d * 0.95 + 0.5)); dTgt.z = sz - sz / d * 0.95;
+    dTgt.x = Math.max(-7, Math.min(7, sx - sx / d * 0.95 + 0.5)); dTgt.z = sz - sz / d * 0.95;
   }
   function contestFactor() {
     if (!defOn) return 0;
@@ -1311,17 +1311,19 @@
     var floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), floorMat);
     floor.renderOrder = -2; floor.rotation.x = -Math.PI / 2; floor.position.set(0, -0.002, 2); court.add(floor);
     lineMat = new THREE.MeshBasicMaterial({ color: CYAN, transparent: true, opacity: 0, depthWrite: false });
+    var lineG = new THREE.Group(); lineG.scale.set(KC, 1, KC); court.add(lineG);       // el campo es KC veces más grande que el muñeco
     function strip(w, d, x, z) {
       var m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lineMat);
-      m.renderOrder = 1; m.rotation.x = -Math.PI / 2; m.position.set(x, 0.004, z); court.add(m);
+      m.renderOrder = 1; m.rotation.x = -Math.PI / 2; m.position.set(x, 0.004, z); lineG.add(m);
     }
-    strip(0.08, 6.0, -2.2, 2.3); strip(0.08, 6.0, 2.2, 2.3); strip(4.48, 0.08, 0, 5.3); strip(10.88, 0.08, 0, -0.7);
+    strip(0.08, 6.0, -2.2, 2.3); strip(0.08, 6.0, 2.2, 2.3); strip(4.48, 0.08, 0, 5.3); strip(11.88, 0.08, 0, -0.7);
+    strip(0.08, 9.1, -5.9, 3.85); strip(0.08, 9.1, 5.9, 3.85); strip(11.88, 0.08, 0, 8.4);          // líneas de banda y línea de medio campo
     var A3 = Math.asin(4.05 / R3);
     var arc3 = new THREE.Mesh(new THREE.RingGeometry(R3 - 0.07, R3 + 0.07, 120, 1, Math.PI + 0.6435, Math.PI - 2 * 0.6435), lineMat);
-    arc3.renderOrder = 1; arc3.rotation.x = -Math.PI / 2; arc3.position.set(0, 0.004, 0); court.add(arc3);
+    arc3.renderOrder = 1; arc3.rotation.x = -Math.PI / 2; arc3.position.set(0, 0.004, 0); lineG.add(arc3);
     strip(0.08, 4.75, -5.4, 1.675); strip(0.08, 4.75, 5.4, 1.675);
     var ft = new THREE.Mesh(new THREE.RingGeometry(1.7, 1.78, 64, 1, 0, Math.PI), lineMat);
-    ft.renderOrder = 1; ft.rotation.x = -Math.PI / 2; ft.rotation.z = 0; ft.position.set(0, 0.004, 5.3); court.add(ft);
+    ft.renderOrder = 1; ft.rotation.x = -Math.PI / 2; ft.rotation.z = 0; ft.position.set(0, 0.004, 5.3); lineG.add(ft);
 
     /* tablero */
     boardG = new THREE.Group(); boardG.position.set(0, H + 0.9, ZB);
@@ -1540,12 +1542,13 @@
     ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height * 2 - 1));
     ray.setFromCamera(ndc, camera);
     if (!ray.ray.intersectPlane(ballPlane, hit)) return;
-    var z = Math.max(2.5, Math.min(8.2, hit.z)), xl = 4.2;
+    var z = Math.max(-0.8, Math.min(11.3, hit.z)), xl = 7.9;
     if (Math.abs(cYaw) < 0.3) {
       var dist = Math.max(4, camera.position.distanceTo(hit)), halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect * dist;
-      xl = Math.min(4.2, Math.max(1, halfW - 0.8));
+      xl = Math.min(7.9, Math.max(1, halfW - 0.8));
     }
-    var x = Math.max(-xl, Math.min(xl, hit.x));
+    var x = Math.max(-xl, Math.min(xl, hit.x)), hd0 = Math.hypot(x, z);
+    if (hd0 < 1.3) { if (hd0 < 0.01) { x = 0; z = 1.3; } else { x = x / hd0 * 1.3; z = z / hd0 * 1.3; } }
     setHold(x, z);
   }
   function updateHint() {
@@ -1608,15 +1611,15 @@
     var k = -o.y / d.y; return k > 0 ? [o.x + d.x * k, o.z + d.z * k] : null;
   }
   function twoPick(e) {
-    var g = groundAt(e), V = acad.two; if (!g) return -1;
+    var g = groundAt(e), V = acad.two; if (!g) return -1; g = [g[0] / KC, g[1] / KC];
     var d1 = Math.hypot(g[0] - V.s1[0], g[1] - V.s1[1]), d2 = Math.hypot(g[0] - V.s2[0], g[1] - V.s2[1]);
     if (Math.min(d1, d2) > 1.9) return -1; return d1 <= d2 ? 0 : 1;
   }
   function twoMove(e) {
-    var g = groundAt(e), V = acad.two; if (!g || !V) return;
+    var g = groundAt(e), V = acad.two; if (!g || !V) return; g = [g[0] / KC, g[1] / KC];
     var P = acad.tdrag === 0 ? V.s1 : V.s2, O = acad.tdrag === 0 ? V.s2 : V.s1;
-    var x = Math.max(-8, Math.min(8, g[0])), z = Math.max(2.2, Math.min(10.2, g[1])), hd = Math.hypot(x, z);
-    if (hd < 3.4) { x = x / (hd || 1) * 3.4; z = z / (hd || 1) * 3.4; if (z < 2.2) z = 2.2; }
+    var x = Math.max(-5.6, Math.min(5.6, g[0])), z = Math.max(0.6, Math.min(8.2, g[1])), hd = Math.hypot(x, z);
+    if (hd < 2.2) { x = x / (hd || 1) * 2.2; z = z / (hd || 1) * 2.2; if (z < 0.6) z = 0.6; }
     var od = Math.hypot(x - O[0], z - O[1]); if (od < 1.9) { x = O[0] + (x - O[0]) / (od || 1) * 1.9; z = O[1] + (z - O[1]) / (od || 1) * 1.9; }
     P[0] = x; P[1] = z; acad.tmoved = true;
   }
@@ -1650,7 +1653,7 @@
         }
         var odx = e.clientX - last.x, ody = e.clientY - last.y;
         last.x = e.clientX; last.y = e.clientY;
-        oYaw -= odx * 0.008; oPitch = Math.max(-0.03, Math.min(1.14, oPitch + ody * 0.004));
+        oYaw -= odx * 0.008; oPitch = Math.max(acad.on ? -0.03 : -0.5, Math.min(1.14, oPitch + ody * 0.004));
         return;
       }
       if (moveDrag) moveTo(e);
@@ -1863,7 +1866,7 @@
         bodyOff = off;
         if (wt >= 0.28) {                          // suelta el balón
           ball.p.copy(ball.hp); ball.p.y = HOLD_Y + JUMP; ball.v.copy(ball.pend);
-          ball.pts = Math.hypot(ball.spawnX, ball.spawnZ) >= R3 ? 2 : 1;   // como en el 3x3: triple = 2, normal = 1
+          ball.pts = Math.hypot(ball.spawnX, ball.spawnZ) >= R3 * KC ? 2 : 1;   // como en el 3x3: triple = 2, normal = 1
           var cf = contestFactor();
           if (cf > 0) {                                  // defensa encima: el tiro sale peor
             var ea = (Math.random() * 2 - 1) * 0.1 * cf, es = 1 + (Math.random() * 2 - 1) * 0.07 * cf, vx0 = ball.v.x, vz0 = ball.v.z;
@@ -1926,13 +1929,13 @@
     var ko = 1 - Math.exp(-dt * 10);
     cYaw += (oYaw - cYaw) * ko; cPitch += (oPitch - cPitch) * ko; cZoom += (oZoom - cZoom) * ko;
     var r0 = Math.hypot(CAMH, courtZ), phi0 = Math.atan2(CAMH, courtZ);
-    var phi = Math.max(0.03, Math.min(1.2, phi0 + cPitch)), rr = r0 / cZoom;
+    var phi = Math.max(-0.3, Math.min(1.2, phi0 + cPitch)), rr = r0 / cZoom;
     camLogo.set(0, 0.1, logoDist / zoom);
     var ow = Math.min(1, Math.abs(Math.sin(cYaw * 0.5)) * 1.8);          // al girar, el pivote pasa a medio camino entre canasta y jugador
     var needR = (Math.hypot(player.position.x, player.position.z) + 4.6) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
     rr += (Math.max(rr, needR) - rr) * ow;                                // y se aleja lo justo para que quepan los dos
     cPx += (player.position.x * 0.5 * ow - cPx) * ko; cPz += (player.position.z * 0.5 * ow - cPz) * ko;
-    camCourt.set(cPx + Math.sin(cYaw) * Math.cos(phi) * rr, 2.8 + Math.sin(phi) * rr, cPz + Math.cos(cYaw) * Math.cos(phi) * rr);
+    camCourt.set(cPx + Math.sin(cYaw) * Math.cos(phi) * rr, Math.max(0.35, 2.8 + Math.sin(phi) * rr), cPz + Math.cos(cYaw) * Math.cos(phi) * rr);
     if (acad.on) {                                                       // cámara de la Academia: gira alrededor de la secuencia
       var aphi = Math.max(0.05, Math.min(1.35, 0.4 + cPitch)), arr = 15.5 / cZoom;
       camCourt.set(Math.sin(cYaw) * Math.cos(aphi) * arr, 1.7 + Math.sin(aphi) * arr, acad.midZ + Math.cos(cYaw) * Math.cos(aphi) * arr);
