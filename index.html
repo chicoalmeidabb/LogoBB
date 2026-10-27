@@ -244,7 +244,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v4.3',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v4.4',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -506,7 +506,7 @@
   var elV = new THREE.Vector3(), poV = new THREE.Vector3(), dirV = new THREE.Vector3(), hcV = new THREE.Vector3();
   var pzV = new THREE.Vector3(), pxV = new THREE.Vector3(), mM = new THREE.Matrix4(), aimD = new THREE.Vector3();
   var handCur = [new THREE.Vector3(), new THREE.Vector3()], handInit = false;
-  function ik(bodyRef, arm, hand, hc0, sd, sn, cs, aim, flop, flare) {
+  function ik(bodyRef, arm, hand, hc0, sd, sn, cs, aim, flop, flare, fwo) {
       if (flare === undefined) flare = 1;
       shV.set(sd * 0.4, 2.2, 0); bodyRef.localToWorld(shV);
       /* IK de dos huesos: el codo cae hacia abajo y afuera */
@@ -515,7 +515,9 @@
       dirV.copy(axV).divideScalar(Math.max(d, 1e-4));
       hcV.copy(shV).addScaledVector(dirV, dd);                         // mano alcanzable
       var a = (LU * LU - LF * LF + dd * dd) / (2 * dd), h = Math.sqrt(Math.max(0, LU * LU - a * a));
-      var fw = flare < 0.5 ? -0.3 : 0.2;                                  // codo de tiro: debajo del hombro y hacia la canasta
+      var lowH = Math.max(0, Math.min(1, (shV.y - hc0.y - 0.45) / 0.45));   // mano muy por debajo del hombro: el codo va ATRÁS, nunca adelante
+      var fw = flare < 0.5 ? -0.3 * (1 - lowH) + 0.2 * lowH : 0.2;           // codo de tiro: debajo del hombro y hacia la canasta
+      if (fwo !== undefined) fw = fwo;
       poV.set(cs * sd * 0.6 * flare + sn * fw, -0.85, -sn * sd * 0.6 * flare + cs * fw);
       poV.addScaledVector(dirV, -poV.dot(dirV)).normalize();
       elV.copy(shV).addScaledVector(dirV, a).addScaledVector(poV, h);
@@ -533,11 +535,14 @@
       hand.quaternion.setFromRotationMatrix(mM.makeBasis(pxV, axV, pzV));
       if (flop) hand.rotateX(flop);                                  // muñeca: la mano cae hacia delante al soltar
   }
+  function dropArm() { if (ball.holdArm) { ball.holdArm = false; ball.dropRel = ball.rel; } }
   function updateArms(dt, off) {
     var th = player.rotation.y, sn = Math.sin(th), cs = Math.cos(th), hp = ball.hp, st = ball.state, rel = ball.rel;
     var arms = [armL, armR], hands = [handL, handR], k = 1 - Math.exp(-dt * 25);
     var sm = function (a, b, x) { x = Math.max(0, Math.min(1, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
-    var fl = st === 'flying' ? sm(0.04, 0.16, rel) * (1 - sm(0.5, 0.8, rel)) : 0;    // 0 = sin gesto, 1 = muñeca caída
+    if (ball.holdArm && rel > 3.2) dropArm();
+    var re = rel; if (st === 'flying' && rel >= 0.45) re = ball.holdArm ? 0.45 : 0.45 + Math.max(0, rel - Math.max(0.45, ball.dropRel));   // los brazos se quedan arriba hasta que el balón entra o toca aro/tablero
+    var fl = st === 'flying' ? sm(0.04, 0.16, re) * (1 - sm(0.5, 0.8, re)) : 0;    // 0 = sin gesto, 1 = muñeca caída
     for (var i = 0; i < 2; i++) {
       var sd = i === 0 ? -1 : 1, sh = sd === 1;                    // la mano derecha es la que tira
       hV.set(hp.x + cs * (sh ? 0.17 : 0.3) * sd + sn * 0.05, hp.y + off - 0.02, hp.z - sn * (sh ? 0.17 : 0.3) * sd + cs * 0.05);
@@ -546,7 +551,7 @@
       rV.set(player.position.x + cs * 0.5 * sd - sn * 0.05, player.position.y + 1.45, player.position.z - sn * 0.5 * sd - cs * 0.05);
       if (st === 'flying') {
         if (rel < 0.45) tgV.copy(hV).lerp(fV, sm(0, sh ? 0.1 : 0.07, rel));
-        else tgV.copy(fV).lerp(rV, sm(0.45, 0.95, rel));              // el brazo se queda arriba y baja al caer
+        else tgV.copy(fV).lerp(rV, sm(0.45, 0.95, re));              // el brazo se queda arriba y baja al caer
       } else tgV.copy(hV);
       if (!handInit) handCur[i].copy(tgV); else handCur[i].lerp(tgV, k);
       ik(body, arms[i], hands[i], handCur[i], sd, sn, cs, ballMesh.position, sh ? fl * 1.0 : fl * 0.25, sh ? 0.0 : 1);   // codo de tiro alineado con el hombro, sin abrirse
@@ -686,10 +691,10 @@
     if (rIdx >= 0 && idx === rIdx && phase !== 2) {              // llega el pase
       var q = Math.min(1, loc / 0.85); bx = 4.2 * (1 - q); by = 3.2 - 1.1 * q; bz = pz - 0.9 * q + 0.4 * (1 - q) * 0;
     } else if (phase === 0) {
-      var sb = n && t < acad.tot ? Math.abs(Math.sin(Math.PI * loc)) : 0; bx = px + 0.5 * dSd; by = RB + 1.15 * sb; bz = pz - 0.2;
+      var sb = n && t < acad.tot ? Math.abs(Math.sin(Math.PI * loc)) : 0; bx = px + 0.5 * dSd; by = RB + 1.15 * sb; bz = pz - 0.5;
     } else if (phase === 1) {
       var cu = (gIdx >= 0 && rIdx < 0 && idx === gIdx) ? Math.min(1, (t - acad.st[gIdx] - 0.5) / 0.22) : 1; cu = cu * cu * (3 - 2 * cu);   // el balón sube de la mano que bota al pecho
-      bx = px + 0.5 * dSd * (1 - cu); by = 1.45 + 0.6 * cu; bz = pz - 0.2 - 0.3 * cu;
+      bx = px + 0.5 * dSd * (1 - cu); by = 1.45 + 0.6 * cu; bz = pz - 0.5;
     }
     else {
       var f2 = Math.max(0, Math.min(1, (ts - 0.45 * ACD) / 0.95));
@@ -706,7 +711,7 @@
     for (var h = 0; h < 2; h++) {
       sd = h === 0 ? -1 : 1;
       if (phase === 0) {
-        if (sd === dSd) tg[h].set(px + 0.5 * dSd, Math.max(1.35, Math.min(1.75, by + 0.42)), pz - 0.2);
+        if (sd === dSd) tg[h].set(px + 0.5 * dSd, Math.max(1.35, Math.min(1.75, by + 0.42)), pz - 0.5);
         else { var pump = running ? lf : 0; tg[h].set(px - 0.5 * dSd, 1.62 + 0.12 * Math.abs(pump), pz - 0.45 - 0.3 * pump); }
       } else if (phase === 1) tg[h].set(bx + 0.3 * sd, by, bz + 0.02);        // las dos manos a los lados del balón
       else {
@@ -718,7 +723,7 @@
     }
     acad.hInit = true;
     armL.visible = armR.visible = handL.visible = handR.visible = ps > 0.98;
-    if (ps > 0.98) { ik(body, armL, handL, acad.hh[0], -1, 0, 1, ballMesh.position, 0, phase === 2 && dSd === -1 ? 0 : 1); ik(body, armR, handR, acad.hh[1], 1, 0, 1, ballMesh.position, 0, phase === 2 && dSd === 1 ? 0 : 1); }
+    if (ps > 0.98) { var bL = phase === 0 && dSd === -1, bR = phase === 0 && dSd === 1; ik(body, armL, handL, acad.hh[0], -1, 0, 1, ballMesh.position, 0, phase === 2 && dSd === -1 ? 0 : (bL ? 0.25 : 1), bL ? -0.05 : undefined); ik(body, armR, handR, acad.hh[1], 1, 0, 1, ballMesh.position, 0, phase === 2 && dSd === 1 ? 0 : (bR ? 0.25 : 1), bR ? -0.05 : undefined); }
     handInit = false;
   }
 
@@ -1035,11 +1040,15 @@
     var sg = S1[0] >= 0 ? 1 : -1, LD = [0.55 * sg, 0.6], cutB0 = acad.twoCut === 'base', CS = cutB0 ? S1 : [0.6 * sg, 3.9], dS = Math.max(0.5, Math.hypot(CS[0] - LD[0], CS[1] - LD[1]));
     function along(r) { return mix(CS, LD, Math.max(0, Math.min(1, 1 - r / dS))); }
     var RR = cutB0 ? along(1.95) : CS, P1 = along(1.1), P2 = along(0.58);
-    var cutB = acad.twoCut === 'base', FK = cutB ? [S1[0] - 0.8 * sg, S1[1] + 0.7] : [S1[0] + 0.9 * sg, S1[1] - 1.2];                                       // amago hacia la línea de fondo
+    var cutB = acad.twoCut === 'base';
+    function cl(p) { return [Math.max(-6.4, Math.min(6.4, p[0])), Math.max(0.6, Math.min(8.9, p[1]))]; }
+    var lt = [-u1h[1], u1h[0]]; if (Math.abs(S1[0]) >= 1 ? lt[0] * sg > 0 : (lt[0] * (S2[0] - S1[0]) + lt[1] * (S2[1] - S1[1]) > 0)) lt = [-lt[0], -lt[1]];
+    var FK = cl([S1[0] + u1h[0] * 1.1, S1[1] + u1h[1] * 1.1]), FK2 = cl([FK[0] + lt[0] * 2.2, FK[1] + lt[1] * 2.2]);   // corte de caballo: un paso adelante y dos hacia el otro lado
     function p1f(tt) {
       if (tt < 1.65) return S1;
-      if (tt < 2.15) return mix(S1, FK, sstep(1.65, 2.15, tt));
-      if (tt < 3.35) { var uu = (tt - 2.15) / 1.2; return mix(FK, RR, uu * (2 - uu) * 0.5 + uu * 0.5); }
+      if (tt < 2.0) return mix(S1, FK, sstep(1.65, 2.0, tt));
+      if (tt < 2.6) return mix(FK, FK2, sstep(2.0, 2.6, tt));
+      if (tt < 3.35) { var uu = (tt - 2.6) / 0.75; return mix(FK2, RR, uu * (2 - uu) * 0.5 + uu * 0.5); }
       if (tt < 3.75) return mix(RR, P1, (tt - 3.35) / 0.4);
       if (tt < 4.15) return mix(P1, P2, (tt - 3.75) / 0.4);
       if (tt < 4.9) return mix(P2, LD, sstep(4.15, 4.9, tt));
@@ -1049,7 +1058,7 @@
     var cd = unit(S1, LD), nx = -cd[1], nz = cd[0];
     if (nx * (S2[0] - S1[0]) + nz * (S2[1] - S1[1]) < 0) { nx = -nx; nz = -nz; }
     if (cutB) { nx = -nx; nz = -nz; }                    // el corte se abre hacia el lado del balón: pasa POR DELANTE del defensor
-    var lat = (cutB ? 1.15 : 0) * Math.sin(Math.PI * Math.max(0, Math.min(1, (t - 2.15) / 1.6)));
+    var lat = 0;
     var pc = p1f(t), p1 = t > 6.4 ? mix(LD, S1, ret) : [pc[0] + nx * lat, pc[1] + nz * lat];
     jmp1 = (t > 4.15 && t < 4.9) ? Math.sin(Math.PI * (t - 4.15) / 0.75) : 0;
     if (t < 0.9) m1 = 'ball'; else if (t < 1.65) m1 = 'pass'; else if (t < 3.2) m1 = 'ask'; else if (t < 4.15) m1 = 'ball'; else if (t < 4.5) m1 = 'up'; else if (t < 5.2) m1 = 'high'; else m1 = 'run';
@@ -1101,6 +1110,7 @@
   }
   function updateScr(dt, time, ps) {
     var V = acad.scr, T = twoInit();
+    if (V.mode === 'place') { V.t = 0; V.run = false; }
     if (acad.passShown) hidePass();
     if (acad.pivShown) hidePiv();
     var waiting = V.ask && !V.choice && V.t >= SCR_DEC - 0.001;
@@ -1109,39 +1119,43 @@
     waiting = V.ask && !V.choice && V.t >= SCR_DEC - 0.001;
     if (waiting) { V.nt = (V.nt || 0) - dt; if (V.nt <= 0) { V.nt = 1.2; try { window.dispatchEvent(new CustomEvent('bbpivot', { detail: { txt: '¿Qué hace el 2? Elige abajo' } })); } catch (er) {} } }
     if (V.t >= SCR_T) {
-      V.t = 0; V.pop = 0; if (V.alt) V.choice = V.choice === 'A' ? 'B' : 'A'; else if (V.ask) V.choice = null;
+      V.t = 0; V.pop = 0; if (V.custom) { V.mode = 'place'; V.run = false; } if (V.alt) V.choice = V.choice === 'A' ? 'B' : 'A'; else if (V.ask) V.choice = null;
       T.a1.init = T.a2.init = T.d1.init = T.d2.init = false; T.a1.hi = T.a2.hi = T.d1.hi = T.d2.hi = false;
     }
     var t = V.t, ch = V.choice || 'A', ib = ch !== 'A'; acad.twoShown = true;
     acad.feet.forEach(function (m) { m.visible = false; }); if (acad.ring) acad.ring.visible = false;
     pony.visible = who.sex === 'f'; pony.rotation.x = -0.3; player.visible = pShadow.visible = true; dP.visible = dShadow.visible = true; dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = ps > 0.98;
     T.a1.lab = T.labs[0]; T.a2.lab = T.labs[1]; T.d1.lab = T.dlabs[1]; T.d2.lab = T.dlabs[0];
-    var TP = [0, 7.5], WP = [5, 5], DT0 = [0.15, 6.4], DW0 = [4.2, 4.2];
-    var kA1 = ch === 'A' ? [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.0, 5.0], [4.4, 4.0, 5.0], [5.2, 3.4, 4.3], [7.7, 3.4, 4.3]]
+    var sx = (V.custom && V.s2[0] < 0) ? -1 : 1, TP = [V.s1[0] * sx, V.s1[1]], WP = [V.s2[0] * sx, V.s2[1]];
+    var o1 = [TP[0], TP[1] - 7.5], o2 = [WP[0] - 5, WP[1] - 5], DT0 = [TP[0] + 0.15, TP[1] - 1.1], DW0 = [WP[0] - 0.8, WP[1] - 0.8];
+    var WIN = [[o1, 1.2, 2.5], [o2, 2.8, 4.0], [o2, 2.7, 3.6], [o1, 1.3, 2.6]];
+    var kA1 = ch === 'D' ? [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.0, 5.0], [2.85, 4.0, 5.0], [3.6, 4.7, 5.8], [4.4, 5.4, 5.7], [7.7, 5.4, 5.7]]
+      : ch === 'A' ? [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.0, 5.0], [4.4, 4.0, 5.0], [5.2, 3.4, 4.3], [7.7, 3.4, 4.3]]
       : [[0, 0, 7.5], [1.2, 0, 7.5], [2.5, 4.0, 5.0], [2.85, 4.0, 5.0], [3.5, 3.7, 3.9], [4.1, 3.4, 2.4], [4.6, 3.1, 1.3], [5.2, 3.0, 1.2], [5.55, 2.1, 1.0], [6.0, 1.35, 0.95], [6.75, 0.9, 0.85], [7.7, 0.9, 0.85]];
     var kA2 = ch === 'A' ? [[0, 5, 5], [2.8, 5, 5], [3.15, 4.9, 5.9], [3.6, 4.1, 6.4], [4.1, 3.1, 6.0], [4.5, 2.6, 5.0], [4.9, 2.3, 4.0], [5.3, 1.9, 3.0], [5.7, 1.4, 2.1], [6.45, 1.0, 1.2], [7.7, 1.0, 1.2]]
       : [[0, 5, 5], [2.8, 5, 5], [3.4, 4.2, 5.7], [4.4, 0.7, 5.5], [7.7, 0.7, 5.5]];
     var kDW = ch === 'C' ? [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.5, 4.0, 3.5], [4.2, 3.7, 2.5], [5.2, 3.4, 1.5], [6.0, 1.9, 1.3], [6.75, 1.6, 1.2], [7.7, 1.6, 1.2]] : ch === 'A' ? [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.5, 4.4, 4.9], [4.2, 4.1, 5.6], [4.8, 3.3, 5.4], [5.4, 2.6, 3.9], [5.9, 2.2, 2.6], [7.7, 2.2, 2.6]]
       : [[0, 4.2, 4.2], [2.7, 4.2, 4.2], [3.5, 4.3, 5.2], [4.4, 1.7, 5.6], [7.7, 1.7, 5.6]];
-    var kDT = ch === 'C' ? [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [3.0, 3.4, 5.0], [3.6, 3.2, 4.7], [4.4, 1.0, 4.5], [7.7, 1.0, 4.5]] : ch === 'A' ? [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [4.0, 3.3, 5.2], [4.8, 2.9, 4.2], [5.5, 2.4, 3.0], [7.7, 2.4, 3.0]]
+    var kDT = ch === 'D' ? [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [3.3, 3.3, 5.2], [4.0, 3.5, 5.2], [4.9, 3.9, 5.2], [5.6, 4.3, 5.2], [7.7, 4.3, 5.2]] : ch === 'C' ? [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [3.0, 3.4, 5.0], [3.6, 3.2, 4.7], [4.4, 1.0, 4.5], [7.7, 1.0, 4.5]] : ch === 'A' ? [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [4.0, 3.3, 5.2], [4.8, 2.9, 4.2], [5.5, 2.4, 3.0], [7.7, 2.4, 3.0]]
       : [[0, 0.15, 6.4], [1.3, 0.15, 6.4], [2.6, 3.3, 5.2], [3.3, 3.3, 5.2], [3.9, 3.4, 4.3], [4.6, 3.4, 2.9], [5.4, 2.9, 1.8], [6.1, 2.3, 1.2], [7.7, 2.3, 1.2]];
-    function P(k, S, tt) { var p = kp(k, Math.min(tt, 7.7)); if (tt > 7.7) { var r = sstep(7.7, 9.0, tt); p = [p[0] + (S[0] - p[0]) * r, p[1] + (S[1] - p[1]) * r]; } return p; }
-    var p1 = P(kA1, TP, t), p2 = P(kA2, WP, t), pw = P(kDW, DW0, t), pt = P(kDT, DT0, t);
-    function look(k, S, def) { var a = P(k, S, t), b = P(k, S, t + 0.25); return Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.06 ? b : def; }
-    var l1 = look(kA1, TP, (ch === 'A' && t >= 2.3) || (ib && t >= 2.3 && t < 2.9) ? pw : p2), l2 = look(kA2, WP, ib && t > 3.3 ? p1 : [0, 0]), lw = look(kDW, DW0, ch === 'C' && t > 2.8 ? p1 : p2), lt = look(kDT, DT0, ch === 'C' && t > 2.6 ? p2 : p1);
-    if (t < 1.0) l2 = TP;
-    if (t < 1.5 && t >= 0.9) l1 = WP;
+    function P(k, S, tt, who) { var p = kp(k, Math.min(tt, 7.7)); if (tt > 7.7) { var r = sstep(7.7, 9.0, tt); p = [p[0] + (S[0] - p[0]) * r, p[1] + (S[1] - p[1]) * r]; } var W = WIN[who], w = 1 - sstep(W[1], W[2], tt); return [(p[0] + W[0][0] * w) * sx, p[1] + W[0][1] * w]; }
+    var p1 = P(kA1, TP, t, 0), p2 = P(kA2, WP, t, 1), pw = P(kDW, DW0, t, 2), pt = P(kDT, DT0, t, 3);
+    function look(k, S, def, who) { var a = P(k, S, t, who), b = P(k, S, t + 0.25, who); return Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.06 ? b : def; }
+    var l1 = look(kA1, TP, (ch === 'A' && t >= 2.3) || (ib && t >= 2.3 && t < 2.9) ? pw : p2, 0), l2 = look(kA2, WP, ib && t > 3.3 ? p1 : [0, 0], 1), lw = look(kDW, DW0, ch === 'C' && t > 2.8 ? p1 : p2, 2), lt = look(kDT, DT0, ch === 'C' && t > 2.6 ? p2 : p1, 3);
+    if (t < 1.0) l2 = hb ? [0, 0] : [TP[0] * sx, TP[1]];
+    if (t < 1.5 && t >= 0.9) l1 = [WP[0] * sx, WP[1]];
     /* modos */
     var m1 = 'ball', m2 = 'ask', j1 = 0, j2 = 0, jw = 0, jt = 0;
     if (t < 0.9) m1 = 'ball'; else if (t < 1.5) m1 = 'pass'; else if (t < 2.4) m1 = 'run';
     else if (ch === 'A') m1 = t < 4.4 ? 'screen' : (t < 7.2 ? 'ask' : 'run');
     else { m1 = t < 2.85 ? 'screen' : t < 4.6 ? 'run' : t < 5.2 ? 'ask' : t < 6.0 ? 'ball' : t < 6.35 ? 'up' : t < 6.8 ? 'high' : 'run'; j1 = (t > 6.0 && t < 6.75) ? Math.sin(Math.PI * (t - 6.0) / 0.75) : 0; }
-    var drb = false;
-    if (t < 1.5) m2 = 'ask'; else m2 = 'ball';
+    var drb = false, hb = V.ball === 2;
+    if (hb && t < 1.2) m1 = 'rest';
+    if (t < 1.5) m2 = hb ? 'ball' : 'ask'; else m2 = 'ball';
     if (ch === 'A') { if (t >= 2.7 && t < 4.9) { m2 = 'dribble'; drb = true; } else if (t >= 5.7 && t < 6.05) m2 = 'up'; else if (t >= 6.05 && t < 6.6) m2 = 'high'; else if (t >= 6.6) m2 = 'run'; j2 = (t > 5.7 && t < 6.45) ? Math.sin(Math.PI * (t - 5.7) / 0.75) : 0; jw = (t > 5.95 && t < 6.45) ? 0.5 * Math.sin(Math.PI * (t - 5.95) / 0.5) : 0; }
     else { if (t >= 2.8 && t < 4.4) { m2 = 'dribble'; drb = true; } else if (t >= 4.65 && t < 5.25) m2 = 'pass'; else if (t >= 5.25) m2 = 'rest'; if (t > 6.25 && t < 6.75) { var jj = 0.5 * Math.sin(Math.PI * (t - 6.25) / 0.5); if (ch === 'C') jw = jj; else jt = jj; } }
     if (t < 0.1) V.hand = null;
-    if (drb) { var hv0 = P(kA2, WP, t), hv1 = P(kA2, WP, t + 0.2), hdx = -hv0[0], hdz = -hv0[1], hdl = Math.hypot(hdx, hdz) || 1, rx = -hdz / hdl, rz = hdx / hdl, lv = (hv1[0] - hv0[0]) * rx + (hv1[1] - hv0[1]) * rz;
+    if (drb) { var hv0 = P(kA2, WP, t, 1), hv1 = P(kA2, WP, t + 0.2, 1), hdx = -hv0[0], hdz = -hv0[1], hdl = Math.hypot(hdx, hdz) || 1, rx = -hdz / hdl, rz = hdx / hdl, lv = (hv1[0] - hv0[0]) * rx + (hv1[1] - hv0[1]) * rz;
       if (Math.abs(lv) > 0.12 || !V.hand) V.hand = lv > 0 ? 'R' : 'L'; }                      // se bota con la mano del lado hacia el que se va
     var dbY = RB + 1.7 * Math.abs(Math.cos(Math.PI * (t - (ch === 'A' ? 2.7 : 2.8)) / 0.4));
     twoActor(T.a1, dt, time, ps, p1[0], p1[1], l1[0], l1[1], m1, { stance: m1 === 'screen' ? 1 : 0.2, jump: j1 });
@@ -1152,11 +1166,12 @@
     var A1 = T.a1, A2 = T.a2, bp = tpV, ba, vis = true;
     function mid(R, out) { return out.set((R.h[0].x + R.h[1].x) / 2, (R.h[0].y + R.h[1].y) / 2, (R.h[0].z + R.h[1].z) / 2); }
     function flight(Rs, Re, a, b, arc) { mid(Rs, bp); var e = mid(Re, tpV2), f = sstep(a, b, t); bp.lerp(e, f); bp.y += arc * Math.sin(Math.PI * f); }
-    function shot(R, a, b, c) {                                             // bandeja: suelta, aro y red
-      if (t < b) { bp.set(R.h[1].x, R.h[1].y + 0.3, R.h[1].z); var f4 = (t - a) / (b - a); bp.x += (0 - bp.x) * f4; bp.z += (0 - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + 0.5 * Math.sin(Math.PI * f4); }
+    function shot(R, a, b, c, arc) {                                             // bandeja: suelta, aro y red
+      if (t < b) { bp.set(R.h[1].x, R.h[1].y + 0.3, R.h[1].z); var f4 = (t - a) / (b - a); bp.x += (0 - bp.x) * f4; bp.z += (0 - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + (arc || 0.5) * Math.sin(Math.PI * f4); }
       else if (t < c) { var f5 = (t - b) / (c - b); bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, 0); } else vis = false;
     }
-    if (t < 1.0) mid(A1, bp);
+    if (hb && t < 1.5) mid(A2, bp);
+    else if (t < 1.0) mid(A1, bp);
     else if (t < 1.5) flight(A1, A2, 1.0, 1.5, 0.25);
     else if (ch === 'A') {
       if (t < 2.7) mid(A2, bp);
@@ -1169,15 +1184,16 @@
       else if (t < 4.7) mid(A2, bp);
       else if (t < 5.2) flight(A2, A1, 4.7, 5.2, 0.2);
       else if (t < 6.35) mid(A1, bp);
-      else shot(A1, 6.35, 6.7, 7.1);
+      else shot(A1, 6.35, 6.85, 7.3, ch === 'D' ? 2.2 : 0.5);
     }
     ballMesh.visible = vis; shadow.visible = vis;
     V.pop = Math.min(1, (V.pop === undefined ? 1 : V.pop) + dt * 6);
     ballMesh.scale.setScalar(RB * (0.4 + 0.6 * V.pop)); ballMesh.position.copy(bp);
-    if ((t > 1.0 && t < 1.5) || (t > 4.7 && t < 5.2 && ib)) ballMesh.rotation.x -= dt * 9;
+    if ((t > 1.0 && t < 1.5 && !hb) || (t > 4.7 && t < 5.2 && ib)) ballMesh.rotation.x -= dt * 9;
     shadow.position.set(bp.x, 0.012, bp.z); shadow.scale.setScalar(RB * (1.1 + Math.max(0, bp.y) * 0.04)); shadow.material.opacity = 0.32 / (1 + Math.max(0, bp.y) * 0.35);
     aimDots.visible = false; pBall.copy(bp);
-    if (TWO.rings) TWO.rings.forEach(function (m) { m.visible = false; });
+    if (!TWO.rings) { TWO.rings = [0, 1].map(function (q) { var m = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.92, 40), new THREE.MeshBasicMaterial({ color: q ? 0x1b9ad6 : 0xf59e0b, transparent: true, opacity: 0.9, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.position.y = 0.03; m.renderOrder = 3; court.add(m); return m; }); }
+    TWO.rings.forEach(function (m, q) { var Q = q ? V.s2 : V.s1; m.material.color.setHex((q ? 2 : 1) === (V.ball || 1) ? 0xf59e0b : 0x1b9ad6); m.visible = V.mode === 'place'; m.position.x = Q[0] * KC; m.position.z = Q[1] * KC; m.scale.setScalar(1 + 0.08 * Math.sin(time * 6)); });
     handInit = false;
   }
   window.BBAcad3D = {
@@ -1197,7 +1213,9 @@
     },
     twoCut: function (c) { acad.twoCut = c; },
     twoBall: function (n) { acad.twoBall = n; if (acad.two) acad.two.ball = n; },
-    playScreen: function (o) { o = o || {}; acad.pass = null; acad.piv = null; acad.two = null; acad.scr = { t: 0, run: true, pop: 1, choice: o.choice === 'ask' ? null : (o.choice || 'A'), ask: o.choice === 'ask', alt: o.choice === 'alt', nt: 0 }; acad.passOrbit = false; acad.midZ = 4.4 * KC; oYaw = -0.2; oPitch = 0.5; oZoom = 0.36; },
+    playScreen: function (o) { o = o || {}; acad.scrPos = acad.scrPos || { s1: [0, 7.5], s2: [5, 5] }; acad.pass = null; acad.piv = null; acad.two = null; acad.scr = { ball: o.place ? (acad.scrBall || 1) : 1, custom: !!o.place, mode: o.place ? 'place' : 'demo', s1: o.place ? acad.scrPos.s1 : [0, 7.5], s2: o.place ? acad.scrPos.s2 : [5, 5], t: 0, run: !o.place, pop: 1, choice: o.choice === 'ask' ? null : (o.choice || 'A'), ask: o.choice === 'ask', alt: o.choice === 'alt', nt: 0 }; acad.passOrbit = false; acad.midZ = 4.4 * KC; oYaw = -0.2; oPitch = 0.5; oZoom = 0.36; },
+    scrBall: function (n) { acad.scrBall = n; if (acad.scr) acad.scr.ball = n; },
+    scrGo: function (c) { var V = acad.scr; if (V && V.custom) { V.mode = 'go'; V.t = 0; V.run = true; V.pop = 0; V.ask = c === 'ask'; V.alt = false; V.choice = c === 'ask' ? null : c; if (TWO) { TWO.a1.init = TWO.a2.init = TWO.d1.init = TWO.d2.init = false; TWO.a1.hi = TWO.a2.hi = TWO.d1.hi = TWO.d2.hi = false; } } },
     scrChoose: function (c) { if (acad.scr) { acad.scr.choice = c; } },
     twoGo: function () { var V = acad.two; if (V && V.custom) { V.mode = 'go'; V.t = 0; V.run = true; V.pop = 0; if (TWO) { TWO.a1.init = TWO.a2.init = TWO.d1.init = TWO.d2.init = false; TWO.a1.hi = TWO.a2.hi = TWO.d1.hi = TWO.d2.hi = false; } } },
     playTwo: function (o) { o = o || {}; acad.scr = null; acad.twoPos = acad.twoPos || { s1: [5.0, 5.0], s2: [0.0, 7.5] }; acad.pass = null; acad.piv = null; acad.two = { t: 0, run: !o.place, loop: !o.place, custom: !!o.place, mode: o.place ? 'place' : 'demo', pop: 1, ball: acad.twoBall || 1, s1: o.place ? acad.twoPos.s1 : [5.0, 5.0], s2: o.place ? acad.twoPos.s2 : [0.0, 7.5] }; acad.passOrbit = false; acad.midZ = 3.9 * KC; oYaw = -0.2; oPitch = 0.5; oZoom = 0.36; },
@@ -1316,8 +1334,8 @@
       var m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lineMat);
       m.renderOrder = 1; m.rotation.x = -Math.PI / 2; m.position.set(x, 0.004, z); lineG.add(m);
     }
-    strip(0.08, 6.0, -2.2, 2.3); strip(0.08, 6.0, 2.2, 2.3); strip(4.48, 0.08, 0, 5.3); strip(11.88, 0.08, 0, -0.7);
-    strip(0.08, 9.1, -5.9, 3.85); strip(0.08, 9.1, 5.9, 3.85); strip(11.88, 0.08, 0, 8.4);          // líneas de banda y línea de medio campo
+    strip(0.08, 6.0, -2.2, 2.3); strip(0.08, 6.0, 2.2, 2.3); strip(4.48, 0.08, 0, 5.3); strip(13.78, 0.08, 0, -0.7);
+    strip(0.08, 10.0, -6.85, 4.3); strip(0.08, 10.0, 6.85, 4.3); strip(13.78, 0.08, 0, 9.3);          // líneas de banda y línea de medio campo
     var A3 = Math.asin(4.05 / R3);
     var arc3 = new THREE.Mesh(new THREE.RingGeometry(R3 - 0.07, R3 + 0.07, 120, 1, Math.PI + 0.6435, Math.PI - 2 * 0.6435), lineMat);
     arc3.renderOrder = 1; arc3.rotation.x = -Math.PI / 2; arc3.position.set(0, 0.004, 0); lineG.add(arc3);
@@ -1542,10 +1560,10 @@
     ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height * 2 - 1));
     ray.setFromCamera(ndc, camera);
     if (!ray.ray.intersectPlane(ballPlane, hit)) return;
-    var z = Math.max(-0.8, Math.min(11.3, hit.z)), xl = 7.9;
+    var z = Math.max(-0.8, Math.min(12.5, hit.z)), xl = 9.0;
     if (Math.abs(cYaw) < 0.3) {
       var dist = Math.max(4, camera.position.distanceTo(hit)), halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect * dist;
-      xl = Math.min(7.9, Math.max(1, halfW - 0.8));
+      xl = Math.min(9.0, Math.max(1, halfW - 0.8));
     }
     var x = Math.max(-xl, Math.min(xl, hit.x)), hd0 = Math.hypot(x, z);
     if (hd0 < 1.3) { if (hd0 < 0.01) { x = 0; z = 1.3; } else { x = x / hd0 * 1.3; z = z / hd0 * 1.3; } }
@@ -1611,14 +1629,14 @@
     var k = -o.y / d.y; return k > 0 ? [o.x + d.x * k, o.z + d.z * k] : null;
   }
   function twoPick(e) {
-    var g = groundAt(e), V = acad.two; if (!g) return -1; g = [g[0] / KC, g[1] / KC];
+    var g = groundAt(e), V = acad.two || acad.scr; if (!g) return -1; g = [g[0] / KC, g[1] / KC];
     var d1 = Math.hypot(g[0] - V.s1[0], g[1] - V.s1[1]), d2 = Math.hypot(g[0] - V.s2[0], g[1] - V.s2[1]);
     if (Math.min(d1, d2) > 1.9) return -1; return d1 <= d2 ? 0 : 1;
   }
   function twoMove(e) {
-    var g = groundAt(e), V = acad.two; if (!g || !V) return; g = [g[0] / KC, g[1] / KC];
+    var g = groundAt(e), V = acad.two || acad.scr; if (!g || !V) return; g = [g[0] / KC, g[1] / KC];
     var P = acad.tdrag === 0 ? V.s1 : V.s2, O = acad.tdrag === 0 ? V.s2 : V.s1;
-    var x = Math.max(-5.6, Math.min(5.6, g[0])), z = Math.max(0.6, Math.min(8.2, g[1])), hd = Math.hypot(x, z);
+    var x = Math.max(-6.4, Math.min(6.4, g[0])), z = Math.max(0.6, Math.min(8.9, g[1])), hd = Math.hypot(x, z);
     if (hd < 2.2) { x = x / (hd || 1) * 2.2; z = z / (hd || 1) * 2.2; if (z < 0.6) z = 0.6; }
     var od = Math.hypot(x - O[0], z - O[1]); if (od < 1.9) { x = O[0] + (x - O[0]) / (od || 1) * 1.9; z = O[1] + (z - O[1]) / (od || 1) * 1.9; }
     P[0] = x; P[1] = z; acad.tmoved = true;
@@ -1626,7 +1644,7 @@
   canvas.addEventListener('pointerdown', function (e) {
     canvas.setPointerCapture(e.pointerId);
     pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
-    if (acad.on && acad.two && acad.two.mode === 'place') { var gi = twoPick(e); if (gi >= 0) { acad.tdrag = gi; acad.tmoved = false; return; } }
+    if (acad.on && ((acad.two && acad.two.mode === 'place') || (acad.scr && acad.scr.mode === 'place'))) { var gi = twoPick(e); if (gi >= 0) { acad.tdrag = gi; acad.tmoved = false; return; } }
     if (acad.on && acad.pass && acad.pass.manual && !acad.passOrbit) { acad.pdrag = { y0: e.clientY }; return; }   // pase: echar atrás y soltar
     if (mode === 'court') {
       if (orbitOn) { last.x = e.clientX; last.y = e.clientY; lastPinch = 0; return; }
@@ -1641,7 +1659,7 @@
   canvas.addEventListener('pointermove', function (e) {
     if (!pointers[e.pointerId]) return;
     pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
-    if (acad.tdrag != null && acad.two) { twoMove(e); return; }
+    if (acad.tdrag != null && (acad.two || acad.scr)) { twoMove(e); return; }
     if (acad.pdrag) { if (acad.pass) acad.pass.pull = Math.max(0, Math.min(1, (e.clientY - acad.pdrag.y0) / (stage.clientHeight * 0.22))); return; }
     if (mode === 'court') {
       if (orbitOn) {
@@ -1673,7 +1691,7 @@
   });
   function up(e) {
     delete pointers[e.pointerId]; lastPinch = 0;
-    if (acad.tdrag != null) { if (!acad.tmoved && acad.two) { acad.two.ball = acad.tdrag + 1; acad.twoBall = acad.two.ball; try { window.dispatchEvent(new CustomEvent('bbtwoball', { detail: { n: acad.two.ball } })); } catch (er) {} } acad.tdrag = null; return; }
+    if (acad.tdrag != null) { if (!acad.tmoved && acad.scr && !acad.two) { acad.scr.ball = acad.tdrag + 1; acad.scrBall = acad.scr.ball; try { window.dispatchEvent(new CustomEvent('bbscrball', { detail: { n: acad.scr.ball } })); } catch (er) {} } if (!acad.tmoved && acad.two) { acad.two.ball = acad.tdrag + 1; acad.twoBall = acad.two.ball; try { window.dispatchEvent(new CustomEvent('bbtwoball', { detail: { n: acad.two.ball } })); } catch (er) {} } acad.tdrag = null; return; }
     if (acad.pdrag) {
       var PP = acad.pass; acad.pdrag = null;
       if (PP && PP.manual && PP.state === 'ready' && PP.pull > 0.22) { PP.fs = 1.3 - 0.6 * PP.pull; PP.state = 'go'; PP.t = 0.45; PP.run = true; PP.pop = 1; }
@@ -1740,7 +1758,7 @@
     v.y -= G * dt; p.x += v.x * dt; p.y += v.y * dt; p.z += v.z * dt;
 
     if (p.y < RB) {                              // suelo
-      p.y = RB;
+      p.y = RB; dropArm();
       if (v.y < 0) { v.y = -v.y * 0.74; v.x *= 0.95; v.z *= 0.95; if (v.y < 1.3) v.y = 0; }
       v.x *= 0.998; v.z *= 0.998;
     }
@@ -1749,7 +1767,7 @@
       if (Math.abs(dz) < lim) {
         var side = prevZ >= ZB ? 1 : -1;
         p.z = ZB + side * lim;
-        if (v.z * side < 0) { v.z = -v.z * 0.62; v.x *= 0.95; v.y *= 0.96; }
+        if (v.z * side < 0) { v.z = -v.z * 0.62; v.x *= 0.95; v.y *= 0.96; dropArm(); }
       }
     }
     var hd = Math.hypot(p.x, p.z);               // aro
@@ -1760,7 +1778,7 @@
         nx /= dist; ny /= dist; nz /= dist;
         p.x = qx + nx * minD; p.y = H + ny * minD; p.z = qz + nz * minD;
         var vn = v.x * nx + v.y * ny + v.z * nz;
-        if (vn < 0) { v.x -= 1.55 * vn * nx; v.y -= 1.55 * vn * ny; v.z -= 1.55 * vn * nz; v.multiplyScalar(0.985); }
+        if (vn < 0) { dropArm(); v.x -= 1.55 * vn * nx; v.y -= 1.55 * vn * ny; v.z -= 1.55 * vn * nz; v.multiplyScalar(0.985); }
       }
     }
     if (hd < RIM && p.y < H + 0.05 && p.y > H - NET_H - 0.3) {      // red: frena y centra
@@ -1769,7 +1787,7 @@
       if (hd > lim2 && hd > 1e-4) { var push = 26 * (hd - lim2) * dt; v.x -= p.x / hd * push; v.z -= p.z / hd * push; }
     }
     if (!ball.scored && prevY > H && p.y <= H && Math.hypot(p.x, p.z) < RIM - 0.1) {   // canasta
-      ball.scored = true; ball.scoreT = 0; score += ball.pts; made++; netSway = 1; hudText();
+      ball.scored = true; dropArm(); ball.scoreT = 0; score += ball.pts; made++; netSway = 1; hudText();
       document.getElementById('tMain').textContent = ball.pts === 2 ? '¡Triple! +2' : '¡Canasta! +1'; showToast();
       document.getElementById('hHint').textContent = 'Arrastra hacia abajo y suelta para lanzar';
     }
@@ -1872,7 +1890,7 @@
             var ea = (Math.random() * 2 - 1) * 0.1 * cf, es = 1 + (Math.random() * 2 - 1) * 0.07 * cf, vx0 = ball.v.x, vz0 = ball.v.z;
             ball.v.x = (vx0 * Math.cos(ea) + vz0 * Math.sin(ea)) * es; ball.v.z = (-vx0 * Math.sin(ea) + vz0 * Math.cos(ea)) * es; ball.v.y *= es;
           }
-          ball.state = 'flying'; ball.t = 0; ball.rel = 0; acc = 0; holding = false;
+          ball.state = 'flying'; ball.t = 0; ball.rel = 0; ball.holdArm = true; ball.dropRel = 0; acc = 0; holding = false;
           tries++; hudText();
         }
       } else if (ball.state === 'ready') {
@@ -2161,27 +2179,39 @@
     var rp = document.getElementById('acRep'); if (rp) rp.onclick = function () { A.stop(); A.speed(slow ? 0.45 : 1); A.playTwo({ place: false }); };
   }
 
-  var scrMode = 'A';
+  var scrMode = 'A', scrPlace = false, scrBall = 1;
+  window.addEventListener('bbscrball', function (e) { scrBall = e.detail.n; var a = document.getElementById('sB1'), b = document.getElementById('sB2'); if (a) a.setAttribute('aria-pressed', scrBall === 1); if (b) b.setAttribute('aria-pressed', scrBall === 2); });
   function viewScr() {
     stopAnim();
     var ask = scrMode === 'ask';
-    body.innerHTML = '<p class="acn">El <b>1</b> (arriba) pasa al <b>2</b> (a 45°) y va a hacerle un <b>bloqueo al defensor del balón</b>. Después, el 2 decide.</p>' +
-      '<div class="acopts"><button type="button" data-m="A" aria-pressed="' + (scrMode === 'A') + '">Opción A: bota a canasta</button><button type="button" data-m="B" aria-pressed="' + (scrMode === 'B') + '">Opción B: pase al que bloquea</button><button type="button" data-m="C" aria-pressed="' + (scrMode === 'C') + '">Opción C: cambio de defensores</button><button type="button" data-m="alt" aria-pressed="' + (scrMode === 'alt') + '">Las dos</button><button type="button" data-m="ask" aria-pressed="' + ask + '">Decido yo</button></div>' +
-      (ask ? '<p class="acn"><b>La jugada se para tras el bloqueo.</b> ¿Qué hace el 2?</p><div class="acopts"><button type="button" id="acCA" class="primary">Bota a canasta (paso 0)</button><button type="button" id="acCB" class="primary">Pasa al que bloqueó</button><button type="button" id="acCC" class="primary">Cambio de defensores</button></div>' : '') +
+    body.innerHTML = '<div class="acopts"><button type="button" id="acSD" aria-pressed="' + !scrPlace + '">Demostración</button><button type="button" id="acSP" aria-pressed="' + scrPlace + '">Colócalos tú</button></div>' +
+      (scrPlace ? '<p class="acn"><b>Arrastra el 1 y el 2</b> a donde quieras sobre la pista (el 1 lleva el balón, aro naranja). Los defensores se colocan solos. <b>Toca a un jugador</b> (o usa los botones) para darle el balón. Luego <b>elige qué hace el 2</b> tras el bloqueo; al acabar, los jugadores vuelven a donde los pusiste.</p>' +
+        '<div class="acopts"><button type="button" id="sB1" aria-pressed="' + (scrBall === 1) + '">Balón: jugador 1</button><button type="button" id="sB2" aria-pressed="' + (scrBall === 2) + '">Balón: jugador 2</button></div><div class="acopts"><button type="button" class="primary" data-g="A">A: bota a canasta</button><button type="button" class="primary" data-g="B">B: pase al que bloquea (bandeja)</button><button type="button" class="primary" data-g="D">D: el que bloquea se abre al triple</button><button type="button" class="primary" data-g="C">C: cambio de defensores</button><button type="button" class="primary" data-g="ask">Decido yo tras el bloqueo</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>'
+      : '<p class="acn">El <b>1</b> (arriba) pasa al <b>2</b> (a 45°) y va a hacerle un <b>bloqueo al defensor del balón</b>. Después, el 2 decide.</p>' +
+      '<div class="acopts"><button type="button" data-m="A" aria-pressed="' + (scrMode === 'A') + '">Opción A: bota a canasta</button><button type="button" data-m="B" aria-pressed="' + (scrMode === 'B') + '">Opción B: pase al que bloquea</button><button type="button" data-m="D" aria-pressed="' + (scrMode === 'D') + '">Opción D: se abre al triple</button><button type="button" data-m="C" aria-pressed="' + (scrMode === 'C') + '">Opción C: cambio de defensores</button><button type="button" data-m="alt" aria-pressed="' + (scrMode === 'alt') + '">Las dos</button><button type="button" data-m="ask" aria-pressed="' + ask + '">Decido yo</button></div>' +
+      (ask ? '<p class="acn"><b>La jugada se para tras el bloqueo.</b> ¿Qué hace el 2?</p><div class="acopts"><button type="button" id="acCA" class="primary">Bota a canasta (paso 0)</button><button type="button" id="acCB" class="primary">Pasa al que bloqueó</button><button type="button" id="acCD" class="primary">Pasa al que se abre al triple</button><button type="button" id="acCC" class="primary">Cambio de defensores</button></div>' : '') +
       '<ol class="acs">' +
       '<li>El <b>1</b> pasa al ala y corre a <b>bloquear</b>: se coloca junto al defensor del balón, con los pies abiertos y los brazos cruzados, <b>quieto</b>.</li>' +
       '<li><b>Opción A:</b> el 2 usa el bloqueo, <b>bota hacia canasta</b>, recoge el balón (<b>paso 0</b>), da dos pasos y termina en bandeja.</li>' +
       '<li><b>Opción B:</b> el que bloquea se <b>abre hacia la línea de fondo</b>, el 2 le <b>pasa</b> y él termina en bandeja.</li>' +
+      '<li><b>Opción D (pick and pop):</b> en vez de entrar, el que bloquea <b>se abre hacia el triple</b>; el 2 bota hacia el centro, atrae a su defensor y le <b>pasa fuera</b>. El 1 recibe con los pies preparados y <b>tira de tres</b>.</li>' +
       '<li><b>Opción C (cambio):</b> en el bloqueo los defensores <b>se intercambian</b>: el defensor del 1 (<b>A</b>) se queda con el 2 y el defensor del 2 (<b>B</b>) pasa a defender al 1.</li></ol>' +
-      '<div class="acopts"><button type="button" id="acRep">Ver otra vez</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>';
+      '<div class="acopts"><button type="button" id="acRep">Ver otra vez</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>');
     bindSlow();
-    A.stop(); A.speed(slow ? 0.45 : 1); A.playScreen({ choice: scrMode });
+    A.stop(); A.speed(slow ? 0.45 : 1); A.scrBall(scrBall); A.playScreen({ choice: scrMode, place: scrPlace });
+    var q1 = document.getElementById('sB1'), q2 = document.getElementById('sB2');
+    if (q1) q1.onclick = function () { A.scrBall(1); scrBall = 1; q1.setAttribute('aria-pressed', true); q2.setAttribute('aria-pressed', false); };
+    if (q2) q2.onclick = function () { A.scrBall(2); scrBall = 2; q2.setAttribute('aria-pressed', true); q1.setAttribute('aria-pressed', false); };
+    document.getElementById('acSD').onclick = function () { scrPlace = false; viewScr(); };
+    document.getElementById('acSP').onclick = function () { scrPlace = true; viewScr(); };
+    Array.prototype.forEach.call(body.querySelectorAll('[data-g]'), function (b) { b.onclick = function () { A.speed(slow ? 0.45 : 1); A.scrGo(b.getAttribute('data-g')); }; });
     Array.prototype.forEach.call(body.querySelectorAll('[data-m]'), function (b) { b.onclick = function () { scrMode = b.getAttribute('data-m'); viewScr(); }; });
     var ca = document.getElementById('acCA'), cb = document.getElementById('acCB');
     if (ca) ca.onclick = function () { A.scrChoose('A'); };
     if (cb) cb.onclick = function () { A.scrChoose('B'); };
+    var cd = document.getElementById('acCD'); if (cd) cd.onclick = function () { A.scrChoose('D'); };
     var cc = document.getElementById('acCC'); if (cc) cc.onclick = function () { A.scrChoose('C'); };
-    document.getElementById('acRep').onclick = function () { A.stop(); A.speed(slow ? 0.45 : 1); A.playScreen({ choice: scrMode }); };
+    var rp = document.getElementById('acRep'); if (rp) rp.onclick = function () { A.stop(); A.speed(slow ? 0.45 : 1); A.playScreen({ choice: scrMode }); };
   }
 
   var lastSub = 0, blk0 = document.getElementById('acB0'), subSeg = document.getElementById('acSub');
