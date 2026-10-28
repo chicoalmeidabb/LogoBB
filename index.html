@@ -276,7 +276,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v4.6',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v4.7',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -411,6 +411,26 @@
     return new THREE.Mesh(g, m);
   }
   var LU = 0.55, LF = 0.5;
+  /* postura atlética: rodillas flexionadas de verdad (muslo adelante, tibia atrás) y la cadera baja lo justo para que los pies sigan en el suelo */
+  function stanceLegs(legsG, bodyG, lgs, kns, drop, lean) {
+    var al = Math.acos(Math.max(0.5, Math.min(1, 1 + drop / 1.35)));
+    bodyG.position.y = drop; legsG.scale.y = 1.3776;
+    if (lean !== undefined) { var hy = 1.35 + drop; bodyG.rotation.x = lean; bodyG.position.y = drop + hy * (1 - Math.cos(lean)); bodyG.position.z = -hy * Math.sin(lean); }   // el tronco se inclina hacia delante girando por la cadera
+    for (var i = 0; i < 2; i++) { lgs[i].rotation.x = al; lgs[i].rotation.z = 0; kns[i].rotation.x = -2 * al; lgs[i].position.y = 0.98 * Math.cos(al); }
+    return al;
+  }
+  /* mezcla la postura atlética (rodillas flexionadas) con una pose especial u: 0 = solo postura, 1 = solo la pose antigua */
+  function blendStance(R, drop, lean, u, old) {
+    stanceLegs(R.legs, R.body, R.lg, R.kn, drop, lean);
+    if (u <= 0) return;
+    R.legs.scale.y += (old.scale - R.legs.scale.y) * u; R.body.position.y += (old.by - R.body.position.y) * u;
+    R.body.position.z *= (1 - u); R.body.rotation.x += (old.lean - R.body.rotation.x) * u;
+    for (var i = 0; i < 2; i++) {
+      R.lg[i].rotation.x += (old.rot[i] - R.lg[i].rotation.x) * u; R.kn[i].rotation.x += (old.kn[i] - R.kn[i].rotation.x) * u;
+      R.lg[i].position.y += (old.py[i] - R.lg[i].position.y) * u;
+    }
+  }
+  function my(y) { return y < 2.2 ? 1.21 + (y - 0.98) * 0.8115 : y; }   // piernas más largas (cadera a 1.35 de altura) y tronco más corto: proporciones humanas
   function buildPlayer() {
     player = new THREE.Group(); body = new THREE.Group(); legs = new THREE.Group();
     var skin = mat(0xe0b08a, 0.6), skinD = mat(0xc98f68, 0.7), cy = mat(CYAN, 0.5), jc = mat(JERSEY, 0.5), sm = mat(JERSEY, 0.5), hairM = mat(0x74492a, 0.8), bandM = mat(0xffffff, 0.5), trimM = mat(NAVY, 0.5);
@@ -422,48 +442,50 @@
     [-0.145, 0.145].forEach(function (x) {
       var lg = new THREE.Group(); lg.position.set(x, 0.98, 0); legs.add(lg); legG.push(lg);
       var Y = 0.98;
-      lg.add(part(new THREE.CylinderGeometry(0.135, 0.09, 0.3, 18), skin, 0, 0.83 - Y, 0));                // muslo bajo
-      lg.add(part(new THREE.SphereGeometry(0.09, 14, 10), skin, 0, 0.7 - Y, -0.005));                       // rodilla
-      var kg = new THREE.Group(); kg.position.set(0, 0.7 - Y, 0); lg.add(kg); lg.userData.knee = kg;   // la espinilla gira en la rodilla
-      var calf = part(new THREE.SphereGeometry(1, 14, 12), skin, 0, 0.52 - 0.7, 0.025); calf.scale.set(0.09, 0.18, 0.1); kg.add(calf);
-      kg.add(part(new THREE.CylinderGeometry(0.085, 0.056, 0.5, 14), skin, 0, 0.46 - 0.7, 0));                // gemelo/espinilla
-      kg.add(part(new THREE.CylinderGeometry(0.07, 0.062, 0.26, 14), bandM, 0, 0.28 - 0.7, 0));              // calcetín
-      kg.add(part(new THREE.CylinderGeometry(0.094, 0.07, 0.36, 16), sleeveM, 0, 0.5 - 0.7, 0));                    // media de compresión (como en la foto)
-      var shoe = part(new THREE.SphereGeometry(1, 18, 12), cy, 0, 0.08 - 0.7, -0.05); shoe.scale.set(0.095, 0.075, 0.2); kg.add(shoe);
-      var sole = part(new THREE.SphereGeometry(1, 18, 8), bandM, 0, 0.032 - 0.7, -0.05); sole.scale.set(0.1, 0.035, 0.208); kg.add(sole);
+      lg.add(part(new THREE.CylinderGeometry(0.145, 0.097, 0.46, 18), skin, 0, 0.75 - Y, 0));                // muslo (la rodilla, a media altura)
+      lg.add(part(new THREE.SphereGeometry(0.095, 14, 10), skin, 0, 0.52 - Y, -0.005));                       // rodilla
+      var kg = new THREE.Group(); kg.position.set(0, 0.52 - Y, 0); lg.add(kg); lg.userData.knee = kg;   // la espinilla gira en la rodilla
+      var calf = part(new THREE.SphereGeometry(1, 14, 12), skin, 0, (0.52 - 0.7) * 0.7429, 0.025); calf.scale.set(0.09, 0.18 * 0.7429, 0.1); kg.add(calf);
+      kg.add(part(new THREE.CylinderGeometry(0.085, 0.056, 0.5 * 0.7429, 14), skin, 0, (0.46 - 0.7) * 0.7429, 0));                // gemelo/espinilla
+      kg.add(part(new THREE.CylinderGeometry(0.07, 0.062, 0.26 * 0.7429, 14), bandM, 0, (0.28 - 0.7) * 0.7429, 0));              // calcetín
+      kg.add(part(new THREE.CylinderGeometry(0.094, 0.07, 0.36 * 0.7429, 16), sleeveM, 0, (0.5 - 0.7) * 0.7429, 0));                    // media de compresión (como en la foto)
+      var shoe = part(new THREE.SphereGeometry(1, 18, 12), cy, 0, (0.08 - 0.7) * 0.7429, -0.05); shoe.scale.set(0.095, 0.075, 0.2); kg.add(shoe);
+      var sole = part(new THREE.SphereGeometry(1, 18, 8), bandM, 0, (0.032 - 0.7) * 0.7429, -0.05); sole.scale.set(0.1, 0.035, 0.208); kg.add(sole);
     });
     /* pantalón */
-    var hips = shaped([[1.02, 0.30, 0.185], [1.25, 0.305, 0.185], [1.45, 0.285, 0.172]], sm, 6); body.add(hips);
-    [-0.145, 0.145].forEach(function (x) {
-      var tube = part(new THREE.CylinderGeometry(0.15, 0.165, 0.3, 20), sm, x, 0.98, 0); tube.scale.z = 1.12; body.add(tube);
-      [0.86, 0.915].forEach(function (yy) {
-        var r = 0.165 - (yy - 0.83) / 0.3 * 0.015 + 0.004;
-        var band = part(new THREE.CylinderGeometry(r, r, 0.028, 20, 1, true), bandM, x, yy, 0); band.scale.z = 1.12; body.add(band);
+    var hips = shaped([[my(1.02), 0.30, 0.185], [my(1.25), 0.305, 0.185], [my(1.45), 0.285, 0.172]], sm, 6); body.add(hips);
+    [-0.145, 0.145].forEach(function (x, ix) {          // las perneras van con el muslo (dentro del grupo de la pierna, que escala 1.3776 en y)
+      var lgx = legG[ix], K = 1 / 1.3776;
+      var tube = part(new THREE.CylinderGeometry(0.15, 0.17, 0.44, 20, 1, true), sm, 0, -0.08, 0); tube.scale.set(1, K, 1.12); lgx.add(tube);
+      var cap = part(new THREE.SphereGeometry(0.15, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), sm, 0, -0.08 + 0.22 * K, 0); cap.scale.set(1, K, 1.12); lgx.add(cap);   // cadera redondeada (sin tapa plana)
+      [0.94, 0.99].forEach(function (yy) {
+        var r = 0.17 - (yy - 0.88) / 0.44 * 0.02 + 0.004;
+        var band = part(new THREE.CylinderGeometry(r, r, 0.028, 20, 1, true), bandM, 0, -0.08 + (yy - 1.1) * K, 0); band.scale.set(1, K, 1.12); lgx.add(band);
       });
     });
     /* tronco: capa de piel (hombros) + camiseta sin mangas */
-    var PJ = [[1.30, 0.28, 0.175], [1.55, 0.26, 0.162], [1.85, 0.33, 0.2], [2.08, 0.34, 0.205], [2.22, 0.315, 0.185], [2.30, 0.235, 0.15], [2.36, 0.152, 0.112]];
-    var PS = [[1.30, 0.268, 0.165], [1.55, 0.245, 0.152], [1.85, 0.315, 0.19], [2.08, 0.325, 0.195], [2.24, 0.30, 0.17], [2.36, 0.14, 0.1]];
+    var PJ = [[my(1.30), 0.27, 0.172], [my(1.55), 0.255, 0.162], [my(1.85), 0.33, 0.2], [my(2.08), 0.345, 0.205], [2.22, 0.315, 0.185], [2.30, 0.235, 0.15], [2.36, 0.152, 0.112]];
+    var PS = [[my(1.30), 0.258, 0.165], [my(1.55), 0.245, 0.152], [my(1.85), 0.315, 0.19], [my(2.08), 0.325, 0.195], [2.24, 0.30, 0.17], [2.36, 0.14, 0.1]];
     body.add(shaped(PS, skin, 18));
     var torso = shaped(PJ, jc, 18); body.add(torso);
-    var hem = shaped([[1.29, 0.284, 0.179], [1.33, 0.284, 0.179]], trimM, 1); body.add(hem);
+    var hem = shaped([[my(1.29), 0.274, 0.176], [my(1.33), 0.274, 0.176]], trimM, 1); body.add(hem);
     var collar = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.016, 8, 28), trimM);
     collar.rotation.x = Math.PI / 2; collar.scale.y = 0.8; collar.position.set(0, 2.335, 0); body.add(collar);
     [-1, 1].forEach(function (sd) {
-      var d = part(new THREE.SphereGeometry(0.09, 14, 12), skin, sd * 0.4, 2.2, 0); d.scale.set(1, 1.1, 1); body.add(d);   // deltoides
+      var d = part(new THREE.SphereGeometry(0.105, 16, 12), skin, sd * 0.4, 2.2, 0); d.scale.set(1, 1.1, 1); body.add(d);   // deltoides
     });
     body.add(part(new THREE.CylinderGeometry(0.068, 0.085, 0.22, 14), skin, 0, 2.47, 0));                                       // cuello
     /* camiseta: placa con dorsal curvada sobre el torso */
     jerseyCv = document.createElement('canvas'); jerseyCv.width = jerseyCv.height = 512;
     jerseyTex = new THREE.CanvasTexture(jerseyCv); jerseyTex.anisotropy = maxAniso;
-    var pg = new THREE.PlaneGeometry(0.58, 0.66, 16, 10), pp = pg.attributes.position;
+    var pg = new THREE.PlaneGeometry(0.58, 0.536, 16, 10), pp = pg.attributes.position;
     for (var i = 0; i < pp.count; i++) {
-      var yy = 1.76 + pp.getY(i), w = lerpProf(PJ, yy), k = Math.min(0.999, Math.abs(pp.getX(i)) / w[0]);
+      var yy = my(1.76) + pp.getY(i), w = lerpProf(PJ, yy), k = Math.min(0.999, Math.abs(pp.getX(i)) / w[0]);
       pp.setZ(i, w[1] * Math.sqrt(1 - k * k) + 0.004);
     }
     pg.computeVertexNormals();
     var jm = new THREE.MeshStandardMaterial({ map: jerseyTex, transparent: true, roughness: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-    var jpl = new THREE.Mesh(pg, jm); jpl.position.set(0, 1.76, 0); body.add(jpl);
+    var jpl = new THREE.Mesh(pg, jm); jpl.position.set(0, my(1.76), 0); body.add(jpl);
     /* cabeza */
     var head = part(new THREE.SphereGeometry(0.19, 32, 24), skin, 0, 2.73, 0); head.scale.set(0.88, 1.08, 1.0); body.add(head);
     var jaw = part(new THREE.SphereGeometry(0.13, 24, 16), skin, 0, 2.63, -0.04); jaw.scale.set(0.98, 0.85, 1.0); body.add(jaw);
@@ -485,15 +507,15 @@
     pony.visible = false; body.add(pony);
     applyKit();
     if (document.fonts && document.fonts.load) document.fonts.load('800 100px Montserrat', 'ABC123').then(drawJersey, function () {});
-    var hold = new THREE.Group(); hold.position.y = 0.14; hold.add(body); player.add(legs, hold); legs.scale.y = 1.14;
+    var hold = new THREE.Group(); hold.position.y = 0.14; hold.add(body); player.add(legs, hold); legs.scale.y = 1.3776;
     pMats = { jc: jc, sm: sm, trim: trimM, shoe: cy, hair: hairM, band: bandM, jm: jm, skin: skin }; pIdx = { legs: player.children.indexOf(legs), hold: player.children.indexOf(hold) }; player.visible = false; court.add(player);
     /* brazos de dos tramos con codo */
-    var uG = new THREE.CylinderGeometry(0.07, 0.058, 1, 14); uG.translate(0, 0.5, 0);
-    var fG = new THREE.CylinderGeometry(0.058, 0.042, 1, 14); fG.translate(0, 0.5, 0);
+    var uG = new THREE.CylinderGeometry(0.086, 0.064, 1, 16); uG.translate(0, 0.5, 0);
+    var fG = new THREE.CylinderGeometry(0.066, 0.044, 1, 16); fG.translate(0, 0.5, 0);
     function mkArm() {
       var g = new THREE.Group();
       g.userData.u = new THREE.Mesh(uG, skin); g.userData.f = new THREE.Mesh(fG, skin);
-      g.userData.e = new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 10), skin);
+      g.userData.e = new THREE.Mesh(new THREE.SphereGeometry(0.066, 12, 10), skin);
       g.add(g.userData.u, g.userData.f, g.userData.e); return g;
     }
     mkArmG = mkArm; armL = mkArm(); armR = mkArm();
@@ -525,7 +547,7 @@
       var t2 = new THREE.Mesh(fgC, skin); t2.scale.set(0.015, 0.04, 0.015);
       var tt = new THREE.Mesh(fgS, skin); tt.scale.setScalar(0.0145); tt.position.y = 0.04;
       var tj = new THREE.Mesh(fgS, skin); tj.scale.setScalar(0.0185);
-      t2g.add(t2, tt, tj); th.add(t1, t2g); g.add(th); g.scale.setScalar(1.35);
+      t2g.add(t2, tt, tj); th.add(t1, t2g); g.add(th); g.scale.setScalar(1.55);
       return g;
     };
     handL = mkHandG(-1); handR = mkHandG(1);
@@ -580,9 +602,9 @@
     for (var i = 0; i < 2; i++) {
       var sd = i === 0 ? -1 : 1, sh = sd === (who.lefty ? -1 : 1);   // la mano de tiro: derecha (diestro) o izquierda (zurdo)
       hV.set(hp.x + cs * (sh ? 0.17 : 0.3) * sd + sn * 0.05, hp.y + off - 0.02, hp.z - sn * (sh ? 0.17 : 0.3) * sd + cs * 0.05);
-      if (sh) fV.set(hp.x + cs * 0.08 * sd - sn * 0.42, hp.y + JUMP + 0.62, hp.z - sn * 0.08 * sd - cs * 0.42);   // brazo de tiro extendido arriba y adelante
-      else fV.set(hp.x + cs * 0.3 * sd - sn * 0.25, hp.y + JUMP + 0.2, hp.z - sn * 0.3 * sd - cs * 0.25);  // mano de ayuda abierta al lado
-      rV.set(player.position.x + cs * 0.5 * sd - sn * 0.05, player.position.y + 1.45, player.position.z - sn * 0.5 * sd - cs * 0.05);
+      if (sh) fV.set(hp.x + cs * 0.08 * sd - sn * 0.55, hp.y + JUMP + 0.66, hp.z - sn * 0.08 * sd - cs * 0.55);   // brazo de tiro extendido arriba y adelante
+      else fV.set(hp.x + cs * 0.2 * sd - sn * 0.42, hp.y + JUMP + 0.5, hp.z - sn * 0.2 * sd - cs * 0.42);  // mano de ayuda abierta al lado
+      rV.set(player.position.x + cs * 0.36 * sd - sn * 0.22, player.position.y + 1.2, player.position.z - sn * 0.36 * sd - cs * 0.22);   // en reposo las manos cuelgan delante de los muslos, no en las caderas
       if (st === 'flying') {
         if (rel < 0.45) tgV.copy(hV).lerp(fV, sm(0, sh ? 0.1 : 0.07, rel));
         else tgV.copy(fV).lerp(rV, sm(0.45, 0.95, re));              // el brazo se queda arriba y baja al caer
@@ -593,7 +615,7 @@
     }
     /* piernas: tras el despegue las rodillas se flexionan hacia atrás (como en la secuencia del tiro) */
     var tuck = st === 'flying' ? sm(0.04, 0.22, rel) * (1 - sm(0.42, 0.62, rel)) : 0;
-    for (var li = 0; li < 2; li++) { legG[li].rotation.x = 0; legG[li].userData.knee.rotation.x = 0; }   /* piernas rectas en el tiro: no se recogen hacia atrás */
+    /* las piernas las pone stanceLegs() en el bucle principal */
     handInit = true;
   }
 
@@ -685,7 +707,7 @@
     acad.lean += ((running ? -0.2 : 0) - acad.lean) * Math.min(1, dt * 12);
     player.visible = pShadow.visible = true; player.scale.setScalar(Math.max(0.001, ps));
     player.position.set(px, jumpY, pz); player.rotation.y = 0;
-    body.position.y = crouch; body.rotation.x = acad.lean; legs.scale.y = 1.14 * (0.98 + crouch) / 0.98;
+    body.position.y = crouch; body.rotation.x = acad.lean; legs.scale.y = (1.35 + crouch) / 0.98;
     /* zancada continua: un ciclo completo = 2 apoyos; las piernas se cruzan sin parar en cada paso */
     var psi = Math.PI * (curMoveK + off + curP), sL = running || (curMoveK >= 0 && phase === 2) ? Math.sin(psi) : 0, cL = running ? Math.cos(psi) : 0;
     legG[0].rotation.x = sL * 0.8; legG[1].rotation.x = -sL * 0.8;
@@ -774,7 +796,7 @@
     acad.passShown = false; dP.visible = dShadow.visible = false;
     dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = false; dHandInit = false;
     dBody.rotation.x = 0; dBody.position.y = 0;
-    if (acad.rigs) { var rr = acad.rigs, q; for (q = 0; q < 2; q++) { rr[1].lg[q].rotation.x = 0; rr[1].lg[q].position.y = 0.98; rr[1].kn[q].rotation.x = 0; rr[0].lg[q].position.y = 0.98; } dLegs.scale.y = 1.14; dP.rotation.y = 0; player.rotation.y = 0; }
+    if (acad.rigs) { var rr = acad.rigs, q; for (q = 0; q < 2; q++) { rr[1].lg[q].rotation.x = 0; rr[1].lg[q].position.y = 0.98; rr[1].kn[q].rotation.x = 0; rr[0].lg[q].position.y = 0.98; } dLegs.scale.y = 1.3776; dP.rotation.y = 0; player.rotation.y = 0; }
   }
   var pAim = [new THREE.Vector3(), new THREE.Vector3()], pvH = [new THREE.Vector3(), new THREE.Vector3()], pBall = new THREE.Vector3(), wTmp = new THREE.Vector3();
   var rigH = [[new THREE.Vector3(), new THREE.Vector3()], [new THREE.Vector3(), new THREE.Vector3()]];
@@ -812,9 +834,8 @@
     var crouchP = -0.06 * sstep(0.2, 0.6, ready ? 1 : t) * (1 - ex) - 0.26 * u1;
     wTmp.set(0, 0, zp); W(wTmp);
     RP.root.position.set(0, 0, wTmp.z); RP.root.rotation.y = leg ? Math.PI : 0;
-    RP.body.position.y = crouchP; RP.legs.scale.y = 1.14 * (0.98 + crouchP) / 0.98; RP.body.rotation.x = -0.1 * u1; RP.body.rotation.y = 0;
-    RP.lg[0].rotation.x = -0.52 * u1; RP.lg[1].rotation.x = 1.05 * u1; RP.lg[0].position.y = 0.98 - 0.98 * (1 - Math.cos(0.52 * u1)); RP.lg[1].position.y = 0.98;   /* pie de atrás clavado; la derecha se adelanta */
-    RP.kn[0].rotation.x = -0.05 * u1; RP.kn[1].rotation.x = -1.2 * u1;
+    RP.body.rotation.y = 0;
+    blendStance(RP, crouchP * (1 - u1) - 0.08 * (1 - u1), -0.12, u1, { scale: (1.35 + crouchP) / 0.98, by: crouchP, lean: -0.1 * u1, rot: [-0.52 * u1, 1.05 * u1], kn: [-0.05 * u1, -1.2 * u1], py: [0.98 - 0.98 * (1 - Math.cos(0.52 * u1)), 0.98] });   /* flexionado; al pasar, pie de atrás clavado y la derecha se adelanta */
     pony.visible = who.sex === 'f'; pony.rotation.x = -0.3 + Math.sin(time * 2.2) * 0.04; pony.rotation.z = Math.sin(time * 1.6) * 0.05;
     RP.sh.position.set(0, 0.012, wTmp.z); RP.sh.scale.setScalar(0.55);
     RP.root.updateMatrixWorld(true);
@@ -823,8 +844,8 @@
     var crR = -0.07 * sstep(tc - 0.1, tc + 0.1, t) * (1 - sstep(tc + 0.3, tc + 0.7, t)) - 0.03;
     wTmp.set(0, 0, RZ); W(wTmp);
     RR.root.position.set(0, 0, wTmp.z); RR.root.rotation.y = leg ? 0 : Math.PI;
-    RR.body.position.y = crR; RR.legs.scale.y = 1.14 * (0.98 + crR) / 0.98; RR.body.rotation.x = 0; RR.body.rotation.y = 0;
-    for (i = 0; i < 2; i++) { RR.lg[i].rotation.x = 0; RR.lg[i].position.y = 0.98; RR.kn[i].rotation.x = 0; }
+    RR.body.rotation.y = 0;
+    stanceLegs(RR.legs, RR.body, RR.lg, RR.kn, crR - 0.1, -0.12);
     RR.sh.position.set(0, 0.012, wTmp.z); RR.sh.scale.setScalar(0.55);
     if (leg) { pony.visible = who.sex === 'f'; }
     RR.root.updateMatrixWorld(true);
@@ -887,7 +908,7 @@
   var PIV_Z = 6.2, PIVT = { comp: 11.8, front: 5.0, back: 5.0, free: 6.2 }, CARD = null;
   function hidePiv() {
     acad.pivShown = false; if (acad.ring) acad.ring.visible = false;
-    player.rotation.y = 0; body.rotation.x = body.rotation.y = 0; legs.scale.y = 1.14;
+    player.rotation.y = 0; body.rotation.x = body.rotation.y = 0; legs.scale.y = 1.3776;
     for (var q = 0; q < 2; q++) { legG[q].rotation.x = legG[q].rotation.z = 0; legG[q].position.y = 0.98; legG[q].position.x = q ? 0.145 : -0.145; legG[q].userData.knee.rotation.x = 0; }
   }
   function updatePiv(dt, time, ps) {
@@ -929,7 +950,7 @@
     player.visible = pShadow.visible = true; player.scale.setScalar(Math.max(0.001, ps));
     dP.visible = dShadow.visible = false;
     player.rotation.y = th; player.position.set(-cs * fx, 0, PIV_Z + sn * fx);
-    body.position.y = crouch; legs.scale.y = 1.14 * (0.98 + crouch) / 0.98; body.rotation.x = 0.05; body.rotation.y = 0;
+    body.position.y = crouch; legs.scale.y = (1.35 + crouch) / 0.98; body.rotation.x = 0.05; body.rotation.y = 0;
     var pl = legG[pf], fl = legG[ff];
     legG[0].position.x = -0.34; legG[1].position.x = 0.34;
     pl.rotation.x = 0.35; pl.rotation.z = 0; pl.position.y = 0.98; pl.userData.knee.rotation.x = -0.7;     // pie de pivote: clavado, rodilla flexionada
@@ -1017,13 +1038,15 @@
     var crouch = -0.04 - 0.11 * stK - 0.05 * sp * Math.abs(c) - 0.1 * (o.crouch || 0);
     R.root.visible = R.sh.visible = true; R.root.scale.setScalar(Math.max(0.001, ps));
     R.root.position.set(x, jk, z); R.root.rotation.y = R.yaw;
-    R.body.position.y = crouch; R.legs.scale.y = 1.14 * (0.98 + crouch) / 0.98; R.body.rotation.x = -0.12 * sp; R.body.rotation.y = 0;
-    var i;
+    R.body.rotation.x = -0.12 * sp; R.body.rotation.y = 0;
+    var i, special = !!o.legs || jf > 0;
+    if (special) { R.body.position.y = crouch; R.legs.scale.y = (1.35 + crouch) / 0.98; }
+    else stanceLegs(R.legs, R.body, R.lg, R.kn, crouch - 0.09 * (1 - sp) - 0.05 * sp, -0.1 - 0.12 * sp);    // rodillas flexionadas como un deportista
     for (i = 0; i < 2; i++) {
       var ci = i === 0 ? c : -c, si = i === 0 ? s : -s;
-      R.lg[i].position.x = (i ? 1 : -1) * (0.145 + 0.12 * stK); R.lg[i].position.y = 0.98;
-      R.lg[i].rotation.x = 0.8 * sp * si + 0.2 * stK; R.lg[i].rotation.z = 0;
-      R.kn[i].rotation.x = -(0.15 + 0.5 * stK + 1.0 * sp * Math.max(0, ci));
+      R.lg[i].position.x = (i ? 1 : -1) * (0.145 + 0.12 * stK);
+      if (special) { R.lg[i].position.y = 0.98; R.lg[i].rotation.x = 0.8 * sp * si + 0.2 * stK; R.lg[i].rotation.z = 0; R.kn[i].rotation.x = -(0.15 + 0.5 * stK + 1.0 * sp * Math.max(0, ci)); }
+      else { R.lg[i].rotation.x += 0.8 * sp * si; R.kn[i].rotation.x -= 1.0 * sp * Math.max(0, ci); }
     }
     if (o.legs) { for (i = 0; i < 2; i++) { R.lg[i].rotation.x = o.legs[i][0]; R.kn[i].rotation.x = -o.legs[i][1]; } }
     if (jf > 0) { R.lg[1].rotation.x = 1.6 * jf + R.lg[1].rotation.x * (1 - jf); R.kn[1].rotation.x = -1.5 * jf + R.kn[1].rotation.x * (1 - jf); R.lg[0].rotation.x *= (1 - jf); R.lg[0].rotation.x += 0.1 * jf; R.kn[0].rotation.x *= (1 - jf); }
@@ -1428,6 +1451,7 @@
     var err = Math.hypot(dSt.x - dTgt.x, dSt.z - dTgt.z);
     return Math.min(1, Math.max(0.12, (1 - err / 1.1) * DMUL[defLvl]));
   }
+  var dFlex = null;
   function updateDefender(dt, time, ps, live) {
     if (acad.on) { dSt.init = false; return; }                       // en la Academia el receptor lo controla updatePass
     var show = defOn && ps > 0.98 && live;
@@ -1446,7 +1470,9 @@
     var th = Math.atan2(px - sx, pz - sz), sn = Math.sin(th), cs = Math.cos(th);
     dP.position.set(px, jump, pz); dP.rotation.y = th; dP.scale.setScalar(1);
     var crouch = -0.06 + Math.sin(time * 3.2) * 0.02;
-    dBody.position.y = crouch; dLegs.scale.y = 1.14 * (0.98 + crouch) / 0.98;
+    if (!dFlex) { dFlex = { lg: [], kn: [] }; for (var qi = 0; qi < 2; qi++) { dFlex.lg[qi] = dLegs.children[legs.children.indexOf(legG[qi])]; dFlex.kn[qi] = dFlex.lg[qi].children[legG[qi].children.indexOf(legG[qi].userData.knee)]; } }
+    stanceLegs(dLegs, dBody, dFlex.lg, dFlex.kn, crouch - 0.12, -0.18);
+    if (jump > 0.05) { for (var qj = 0; qj < 2; qj++) { dFlex.lg[qj].rotation.x = 0; dFlex.kn[qj].rotation.x = -0.15; dFlex.lg[qj].position.y = 0.98; } }
     dShadow.position.set(px, 0.012, pz); dShadow.scale.setScalar(0.55 * (1 - jump * 0.6));
     dP.updateMatrixWorld(true);
     var k = 1 - Math.exp(-dt * 18);
@@ -2272,7 +2298,8 @@
       if (ball.state === 'ready') aimRot += ((aimFree ? (aim ? aimOffNow() : 0) + (ball.bias || 0) : 0) - aimRot) * Math.min(1, dt * 12);
       var th0 = Math.atan2(ball.spawnX, ball.spawnZ) - aimRot, lean = (cont.on && !cont.over && ball.state === 'ready' && ball.spawn < 1) ? (who.lefty ? -1 : 1) * 0.7 * Math.sin(Math.PI * Math.min(1, ball.spawn / 0.85)) : 0; player.rotation.y = th0 - lean;
       if (ball.state === 'ready' && Math.abs(aimRot) > 1e-3) { ball.hp.set(ball.spawnX - Math.sin(th0) * 0.5, HOLD_Y, ball.spawnZ - Math.cos(th0) * 0.5); ball.p.copy(ball.hp); }
-      body.position.y = Math.min(0, off); legs.scale.y = 1.14 * (0.98 + Math.min(0, off)) / 0.98;
+      var oeS = Math.min(0, off) - 0.17, alS = stanceLegs(legs, body, legG, [legG[0].userData.knee, legG[1].userData.knee], oeS, off > 0.05 ? 0 : -0.2);
+      if (off > 0.05) { for (var lj = 0; lj < 2; lj++) { legG[lj].rotation.x = 0.06 * lj; legG[lj].userData.knee.rotation.x = -0.12 - 0.5 * Math.min(1, off) * (lj ? 1 : 0.6); legG[lj].position.y = 0.98; } }   // en el salto las piernas se estiran
       pony.visible = who.sex === 'f'; pony.rotation.x = -0.3 - off * 0.9 + Math.sin(time * 2.2) * 0.04; pony.rotation.z = Math.sin(time * 1.6) * 0.05;
       player.updateMatrixWorld(true);
       pShadow.position.set(ball.spawnX, 0.012, ball.spawnZ);
