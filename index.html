@@ -281,7 +281,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v4.9',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v5.0',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -3130,15 +3130,56 @@
           elM.style.color = '#1b6f8a'; elM.textContent = t3StoreSet(a) ? 'Jugada «' + nm + '» guardada.' : 'No se ha podido guardar en este navegador.'; t3Lists();
         }).className = 'primary';
       }
+      if (T3S.received) {
+        var rc = document.createElement('div'); rc.style.cssText = 'width:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;border-radius:12px;background:rgba(30,171,209,.15)';
+        var rt = document.createElement('span'); rt.style.cssText = 'flex:1 1 140px;min-width:0'; rt.textContent = 'Jugada recibida: «' + T3S.received.d.name + '»'; rc.appendChild(rt);
+        mk(rc, 'Guardar en mi app', function () { var g = t3Receive(T3S.received.txt); T3S.received = null; elM.style.color = g ? '#1b6f8a' : '#c0392b'; elM.textContent = g ? 'Guardada como «' + g.name + '».' : 'No se ha podido guardar.'; t3Lists(); }).className = 'primary';
+        sv.insertBefore(rc, sv.firstChild);
+      }
       var lst = t3Store(), h = document.createElement('div'); h.innerHTML = '<b>Jugadas guardadas</b>'; sd.appendChild(h);
       if (!lst.length) { var e0 = document.createElement('div'); e0.style.opacity = '.7'; e0.textContent = 'Todavía no hay jugadas guardadas.'; sd.appendChild(e0); }
       lst.forEach(function (pl) {
-        var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0';
-        var nmEl = document.createElement('span'); nmEl.style.cssText = 'flex:1 1 120px;min-width:0'; nmEl.textContent = pl.name + ' (' + pl.chain.length + ' acciones)'; row.appendChild(nmEl);
-        mk(row, 'Abrir y reproducir', function () { t3Load(pl); });
-        mk(row, 'Borrar', function () { t3StoreSet(t3Store().filter(function (x) { return x.name !== pl.name; })); t3Lists(); });
+        var on = T3S.selPlay === pl.name, row = document.createElement('div'); row.style.cssText = 'margin:4px 0';
+        var bt = mk(row, pl.name + ' (' + pl.chain.length + ' acciones)', function () { T3S.selPlay = on ? null : pl.name; T3S.selMode = 'menu'; t3Lists(); }, on); bt.style.cssText = 'width:100%;text-align:left';
+        if (on) {
+          var pn2 = document.createElement('div'); pn2.style.cssText = 'margin:6px 0 10px;padding:10px;border-radius:12px;background:rgba(30,171,209,.12)';
+          var q2 = document.createElement('div'); q2.style.cssText = 'margin-bottom:8px;font-weight:600'; pn2.appendChild(q2);
+          var bx = document.createElement('div'); bx.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap'; pn2.appendChild(bx);
+          if (T3S.selMode === 'share') {
+            var code = t3Enc(pl, T3S.n), link = t3Base() + '#' + code, txt = 'Jugada «' + pl.name + '» (' + T3S.n + 'x' + T3S.n + ') de Baloncesto Badajoz 3D. Ábrela con la app instalada:\n' + link;
+            q2.textContent = 'Enviar «' + pl.name + '»';
+            var wa = document.createElement('a'); wa.href = 'https://wa.me/?text=' + encodeURIComponent(txt); wa.target = '_blank'; wa.rel = 'noopener'; wa.textContent = 'Abrir WhatsApp'; wa.className = 'primary'; wa.style.cssText = 'display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;background:#1eabd1;color:#fff'; bx.appendChild(wa);
+            if (navigator.share) mk(bx, 'Compartir…', function () { navigator.share({ text: txt }).catch(function () {}); });
+            var ta = document.createElement('textarea'); ta.readOnly = true; ta.rows = 3; ta.value = txt; ta.style.cssText = 'width:100%;margin-top:8px;box-sizing:border-box;font-size:.8em'; ta.onfocus = function () { ta.select(); };
+            mk(bx, 'Copiar mensaje', function () { var ok = function () { elM.style.color = '#1b6f8a'; elM.textContent = 'Mensaje copiado: pégalo en WhatsApp.'; }; try { navigator.clipboard.writeText(txt).then(ok, function () { ta.focus(); ta.select(); }); } catch (er) { ta.focus(); ta.select(); } });
+            mk(bx, 'Atrás', function () { T3S.selMode = 'menu'; t3Lists(); });
+            pn2.appendChild(ta);
+          } else if (T3S.selMode === 'link') {
+            var lk = t3Base() + '#' + t3Enc(pl, T3S.n);
+            q2.textContent = 'Enlace de «' + pl.name + '»: pégalo donde quieras (notas, correo, WhatsApp…) y al abrirlo se ejecuta en el navegador.';
+            var ta2 = document.createElement('textarea'); ta2.readOnly = true; ta2.rows = 3; ta2.value = lk; ta2.style.cssText = 'width:100%;box-sizing:border-box;font-size:.8em;margin-bottom:8px'; ta2.onfocus = function () { ta2.select(); }; pn2.insertBefore(ta2, bx);
+            mk(bx, 'Copiar enlace', function () { var ok = function () { elM.style.color = '#1b6f8a'; elM.textContent = 'Enlace copiado.'; }; try { navigator.clipboard.writeText(lk).then(ok, function () { ta2.focus(); ta2.select(); }); } catch (er) { ta2.focus(); ta2.select(); } }).className = 'primary';
+            var ao = document.createElement('a'); ao.href = lk; ao.target = '_blank'; ao.rel = 'noopener'; ao.textContent = 'Abrir enlace'; ao.style.cssText = 'display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;border:1px solid currentColor'; bx.appendChild(ao);
+            mk(bx, 'Atrás', function () { T3S.selMode = 'menu'; t3Lists(); });
+          } else if (T3S.selMode === 'del') {
+            q2.textContent = '¿Borrar «' + pl.name + '»?';
+            mk(bx, 'Sí, borrar', function () { t3StoreSet(t3Store().filter(function (x) { return x.name !== pl.name; })); T3S.selPlay = null; t3Lists(); });
+            mk(bx, 'No', function () { T3S.selMode = 'menu'; t3Lists(); });
+          } else {
+            q2.textContent = '«' + pl.name + '»: ¿qué quieres hacer?';
+            mk(bx, 'Verla y reproducirla', function () { T3S.selPlay = null; t3Load(pl); }).className = 'primary';
+            mk(bx, 'Enviarla por WhatsApp', function () { T3S.selMode = 'share'; t3Lists(); });
+            mk(bx, 'Copiar solo el enlace', function () { T3S.selMode = 'link'; t3Lists(); });
+            mk(bx, 'Borrarla', function () { T3S.selMode = 'del'; t3Lists(); });
+          }
+          row.appendChild(pn2);
+        }
         sd.appendChild(row);
       });
+      var ir = document.createElement('div'); ir.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0';
+      var ii = document.createElement('input'); ii.type = 'text'; ii.placeholder = 'Pegar aquí una jugada recibida'; ii.setAttribute('aria-label', 'Pegar jugada recibida'); ii.style.cssText = 'flex:1 1 160px;min-width:0'; ir.appendChild(ii);
+      mk(ir, 'Importar', function () { var r = t3Receive(ii.value); if (r && r.n === T3S.n) { elM.style.color = '#1b6f8a'; elM.textContent = 'Jugada «' + r.name + '» importada.'; t3Lists(); } else if (r) { elM.style.color = '#1b6f8a'; elM.textContent = 'Jugada «' + r.name + '» guardada en ' + r.n + 'x' + r.n + '.'; } else { elM.style.color = '#c0392b'; elM.textContent = 'No se ha podido leer esa jugada.'; } });
+      sd.appendChild(ir);
     }
     function selName() { return T3S.sel.t === 'a' ? 'jugador ' + AN[T3S.sel.i] : 'defensor ' + DN[T3S.sel.i]; }
     function place(nm) {
@@ -3218,6 +3259,8 @@
     };
     document.getElementById('t3Orb').onclick = function () { T3S.orbit = !T3S.orbit; this.setAttribute('aria-pressed', T3S.orbit); A.t3Orbit(T3S.orbit); };
     T3S.render = render; T3S.place = place;
+    if (T3S.openName) { var on0 = T3S.openName; T3S.openName = null; var of0 = t3Store().filter(function (x) { return x.name === on0; })[0]; if (of0) setTimeout(function () { t3Load(of0); }, 500); }
+    if (T3S.openIncoming) { var oi = T3S.openIncoming; T3S.openIncoming = null; setTimeout(function () { t3Load(oi); }, 500); }
     A.stop(); A.speed(slow ? 0.45 : 1); A.playT3({ n: T3S.n, orbit: T3S.orbit, att: T3S.att, def: T3S.def, holder: T3S.holder, help: T3S.help, quarter: false });
     render();
   }
@@ -3240,6 +3283,68 @@
     if (d.player) { T3S.sel = { t: d.player.t, i: d.player.i }; T3S.pend = null; T3S.render(); }
     else if (d.name && T3S.place) T3S.place(d.name);
   });
+
+
+  /* ---------- compartir jugadas por WhatsApp ---------- */
+  var T3OK = ['go', 'cut', 'pass', 'screen', 'shoot', 'drive', 'bota'];
+  function t3Base() {              // dirección de la app a la que apunta el enlace
+    if (location.protocol === 'file:' || /github\.io$/.test(location.hostname)) return location.href.split('#')[0];
+    return 'https://claude.ai/artifact/SHV5pQ2Aanshv8kqhg3tvz';
+  }
+  function t3Enc(pl, n) {
+    var o = { n: n, name: pl.name, init: JSON.parse(pl.init), chain: pl.chain };
+    var j = JSON.stringify(o, function (k, v) { return typeof v === 'number' ? Math.round(v * 100) / 100 : v; });
+    var u8 = unescape(encodeURIComponent(j)), hx = 'bj'; for (var q = 0; q < u8.length; q++) hx += ('0' + u8.charCodeAt(q).toString(16)).slice(-2);   // solo letras y cifras: el enlace llega íntegro a cualquier sitio
+    return hx;
+  }
+  function t3Dec(txt) {
+    try {
+      var o, mh = /bj([0-9a-f]{20,})/.exec(txt || '');
+      if (mh) { var hs = mh[1], u = ''; for (var q = 0; q + 1 < hs.length; q += 2) u += String.fromCharCode(parseInt(hs.substr(q, 2), 16)); o = JSON.parse(decodeURIComponent(escape(u))); }
+      else { var m = /BB1\.([A-Za-z0-9_-]+)/.exec(txt || ''); if (!m) return null; var b = m[1].replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) b += '='; o = JSON.parse(decodeURIComponent(escape(atob(b)))); }
+      var n = o.n === 5 ? 5 : o.n === 3 ? 3 : 0; if (!n || typeof o.name !== 'string' || !o.init || !Array.isArray(o.chain) || o.chain.length > 80) return null;
+      var okp = function (a) { return Array.isArray(a) && a.length === n && a.every(function (q) { return Array.isArray(q) && q.length === 2 && isFinite(q[0]) && isFinite(q[1]); }); };
+      if (!okp(o.init.att) || !okp(o.init.def) || !o.chain.every(function (st) { return st && T3OK.indexOf(st.k) >= 0; })) return null;
+      return { n: n, name: o.name.slice(0, 30), init: JSON.stringify(o.init), chain: o.chain };
+    } catch (er) { return null; }
+  }
+  function t3Receive(txt) {          // guarda la jugada recibida en este dispositivo
+    var d = t3Dec(txt); if (!d) return null;
+    var key = 'bbJugadas' + d.n + 'x' + d.n, a = [];
+    try { a = JSON.parse(localStorage.getItem(key) || '[]'); if (!Array.isArray(a)) a = []; } catch (er) { a = []; }
+    var nm = d.name || 'Jugada', base = nm, k = 1;
+    while (a.some(function (x) { return x.name === nm; })) { k++; nm = base.slice(0, 22) + ' (' + k + ')'; }
+    a.push({ name: nm, init: d.init, chain: d.chain, date: Date.now() });
+    try { localStorage.setItem(key, JSON.stringify(a)); } catch (er) { return null; }
+    return { n: d.n, name: nm };
+  }
+  function t3Banner(r) {            // r = { d: jugada leída, txt: código } o null
+    var b = document.getElementById('rcvBan'); if (b) b.remove();
+    b = document.createElement('div'); b.id = 'rcvBan'; b.setAttribute('role', 'status');
+    b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:99999;max-width:92vw;background:#0f2a3a;color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.35);display:flex;gap:10px;align-items:center;flex-wrap:wrap;font:600 14px system-ui,sans-serif';
+    var tx = document.createElement('span'); tx.textContent = r ? 'Te han enviado la jugada «' + r.d.name + '» (' + r.d.n + 'x' + r.d.n + ').' : 'No se ha podido leer la jugada.'; b.appendChild(tx);
+    function bt(t, fn) { var x = document.createElement('button'); x.type = 'button'; x.textContent = t; x.style.cssText = 'font:inherit;padding:6px 12px;border-radius:10px;border:0;background:#1eabd1;color:#fff'; x.onclick = function () { fn(x); }; b.appendChild(x); }
+    if (r) {
+      bt('Verla', function () { T3S.openIncoming = r.d; b.remove(); window.dispatchEvent(new CustomEvent('bbopenacad', { detail: { group: r.d.n === 5 ? 'tac5' : 'tac3', tab: 9, n: r.d.n } })); });
+      bt('Guardar en mi app', function (x) { var g = t3Receive(r.txt); tx.textContent = g ? 'Guardada como «' + g.name + '» en Táctica ' + g.n + 'x' + g.n + '.' : 'No se ha podido guardar.'; x.remove(); });
+    }
+    bt('Cerrar', function () { b.remove(); });
+    document.body.appendChild(b);
+  }
+  function t3AutoOpen(d, txt) {      // el enlace lleva directamente a la jugada: sin pulsar el escudo ni elegir 3x3 / 5x5
+    T3S.openIncoming = d; T3S.received = { d: d, txt: txt };
+    var bm = document.getElementById('bMode'), pb = document.getElementById('player');
+    function go() { if (pb) pb.hidden = true; var mn = document.getElementById('menu'); if (mn) mn.hidden = true; window.dispatchEvent(new CustomEvent('bbopenacad', { detail: { group: d.n === 5 ? 'tac5' : 'tac3', tab: 9, n: d.n } })); }
+    if (bm && !bm.hidden && bm.textContent === 'Ver logo') { go(); return; }
+    if (bm) bm.click();
+    var tries = 0, iv = setInterval(function () { tries++; if ((bm && bm.textContent === 'Ver logo') || tries > 40) { clearInterval(iv); setTimeout(go, 300); } }, 250);
+  }
+  function t3Hash() {
+    var h = location.hash || ''; if (h.indexOf('BB1.') < 0 && !/#bj[0-9a-f]{20,}/.test(h)) return;
+    var txt = decodeURIComponent(h), d = t3Dec(txt); if (d) t3AutoOpen(d, txt); else t3Banner(null);
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (er) {}
+  }
+  window.addEventListener('hashchange', t3Hash); setTimeout(t3Hash, 800);
 
   var lastSub = 0, blk0 = document.getElementById('acB0'), subSeg = document.getElementById('acSub');
   function tab(n) {
