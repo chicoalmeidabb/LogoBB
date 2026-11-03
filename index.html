@@ -197,6 +197,7 @@
     .acad-sheet.min { bottom: auto; }
   }
   .acad-sheet > #acBody { flex: 0 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  body.en-concurso #bMove, body.en-concurso #bDefO { display: none !important; }
 </style>
 
 <div class="credit" aria-hidden="true">ChicoAlmeida</div>
@@ -282,7 +283,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v5.3',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v5.4',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -2449,7 +2450,7 @@
       var rk = document.createElement('div'); rk.className = 'acn'; rk.style.cssText = 'margin:4px 0;text-align:center'; menuB.appendChild(rk);
       var usado = Math.max(0, Math.round(cont.secs - cont.left));
       if (!who.name) {
-        rk.innerHTML = '<b>Para entrar en el ranking pon tu nombre</b> en «Tu jugador» antes de empezar.';
+        rk.innerHTML = '<b>Para entrar en el ranking pon tu nombre</b> en «Mi jugador» antes de empezar.';
         rkCargar(rk, null);
       } else if (!made) {
         rk.innerHTML = 'Con 0 puntos no se entra en el ranking. ¡Inténtalo otra vez!';
@@ -2500,11 +2501,11 @@
     menuT.textContent = '🏆 Ranking de triples'; menuB.innerHTML = '';
     var box = document.createElement('div'); box.className = 'acn'; box.style.cssText = 'margin:0'; menuB.appendChild(box);
     rkCargar(box);
-    menuBtn('‹ Atrás', showContest).style.background = 'transparent';
+    menuBtn('‹ Atrás', function () { showContest(true); }).style.background = 'transparent';
   }
   function startContest(secs, champ) {
     setDef(false); setMoving(false); setOrbit(false); aimFree = true;
-    if (champ) secs = 300;            // Campeonato: siempre 5 minutos para los 25 balones
+    if (champ) secs = 120;            // Campeonato: siempre 2 minutos para los 25 balones
     score = 0; made = 0; tries = 0; cont = { on: true, over: false, shot: 0, pos: 0, left: secs, secs: secs, res: [], champ: !!champ };
     contCart(); contGroup.visible = true; contSet(); newBall(true); contSet(); newBall(false); cont.on = true;
     if (ballMesh) { if (!ballMat0) ballMat0 = ballMesh.material; ballMesh.material = ballMat0; }
@@ -2512,6 +2513,7 @@
   }
   window.addEventListener('bbopenacad', function () { if (cont && cont.on) { cont.on = false; oYaw = 0; oPitch = 0; } });
   function contTick(dt) {
+    document.body.classList.toggle('en-concurso', !!(cont.on && !cont.over));   // en concurso: ni mover jugador ni defensa
     if (!cont.on || cont.over) { if (contGroup && !cont.on) { contGroup.visible = false; document.getElementById('cScore').hidden = true; document.getElementById('hScore').hidden = false; } return; }
     if (!orbitOn && cont.shot > 0) cont.left = Math.max(0, cont.left - dt);   // el reloj se para mientras mueves el campo y sigue al pulsar Tirar
     if (cont.left <= 0 && ball.state === 'ready') { contEnd(); return; }
@@ -2557,60 +2559,47 @@
     var q2 = document.createElement('p'); q2.className = 'acn'; q2.style.cssText = 'margin:0;text-align:center'; q2.textContent = 'Puntería'; menuB.appendChild(q2);
     row(['Con ayuda', 'Libre (tú apuntas)'], aimFree ? 1 : 0, function (i) { aimFree = i === 1; });
     menuBtn('Tirar', function () { if (cont.on) { oYaw = 0; oPitch = 0; } cont.on = false; menuEl.hidden = true; }).className = 'primary';
-    menuBtn('Concurso de triples', showContest);
+    menuBtn('Concurso de triples', function () { showContest(false); });
+    menuBtn('🏆 Campeonato de triples', function () { showContest(true); });
     menuBtn('‹ Menú', showMenu).style.background = 'transparent';
     menuEl.hidden = false;
   }
-  function showContest() {
-    menuT.textContent = 'Concurso de triples'; menuB.innerHTML = '';
+  function showContest(champ) {
+    menuT.textContent = champ ? '🏆 Campeonato de triples' : 'Concurso de triples'; menuB.innerHTML = '';
     var p = document.createElement('p'); p.className = 'acn'; p.style.cssText = 'margin:0;text-align:center'; p.textContent = '5 carros de 5 balones. Cada canasta vale 1; el quinto balón (dorado) vale 2.'; menuB.appendChild(p);
-    var champ = false; try { champ = localStorage.getItem('bb_cont_mode') === 'champ'; } catch (er) {}
-    var segM = document.createElement('div'); segM.style.cssText = 'display:flex;gap:6px';
-    var bEnt = document.createElement('button'), bCam = document.createElement('button');
-    bEnt.type = bCam.type = 'button'; bEnt.textContent = 'Entrenamiento'; bCam.textContent = '🏆 Campeonato'; bEnt.style.cssText = bCam.style.cssText = 'flex:1;padding:10px 6px';
-    segM.appendChild(bEnt); segM.appendChild(bCam); menuB.appendChild(segM);
-    var champTxt = document.createElement('p'); champTxt.className = 'acn'; champTxt.style.cssText = 'margin:0;text-align:center';
-    champTxt.innerHTML = '<b>Campeonato:</b> 5 minutos para los 25 balones. Cuenta para el ranking del mes y de la temporada' + (who.name ? ' como <b>' + rkEsc(who.name) + '</b>.' : '. <b>Pon tu nombre</b> en «Tu jugador» para entrar.');
-    menuB.appendChild(champTxt);
-    var lb = document.createElement('p'); lb.className = 'acn'; lb.style.cssText = 'margin:0;text-align:center'; lb.textContent = 'Tiempo para los 25 balones (el reloj corre desde el primer tiro)'; menuB.appendChild(lb);
+    if (champ) {
+      var ct = document.createElement('p'); ct.className = 'acn'; ct.style.cssText = 'margin:0;text-align:center';
+      ct.innerHTML = '<b>2 minutos</b> para los 25 balones. Cuenta para el ranking del mes y de la temporada' + (who.name ? ' como <b>' + rkEsc(who.name) + '</b>.' : '. <b>Pon tu nombre</b> en «Mi jugador» para entrar.');
+      menuB.appendChild(ct);
+      menuBtn('Empezar campeonato', function () { startContest(120, true); }).className = 'primary';
+      menuBtn('🏆 Ver ranking', showRanking);
+      menuBtn('‹ Atrás', showShot).style.background = 'transparent';
+      return;
+    }
+    var lb = document.createElement('p'); lb.className = 'acn'; lb.style.cssText = 'margin:0;text-align:center'; lb.textContent = 'Tiempo para los 25 balones (el reloj corre desde el primer tiro). No cuenta para el ranking.'; menuB.appendChild(lb);
     var tot = 90; try { tot = parseInt(localStorage.getItem('bb_cont_secs'), 10) || 90; } catch (er) {}
-    var cm = Math.min(59, Math.floor(tot / 60)), cs2 = tot % 60, mode2 = 0, NS = 'http://www.w3.org/2000/svg';
-    var wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px';
-    var disp = document.createElement('div'); disp.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:2.4rem;font-weight:700;line-height:1;font-family:Roboto,Arial,sans-serif';
-    function dbtn(i) { var b = document.createElement('button'); b.type = 'button'; b.style.cssText = 'padding:6px 12px;border-radius:10px;font-size:2.2rem;font-weight:700;min-width:84px;border:0;'; b.onclick = function () { mode2 = i; draw(); }; return b; }
-    var bM = dbtn(0), bS = dbtn(1), col = document.createElement('span'); col.textContent = ':'; disp.appendChild(bM); disp.appendChild(col); disp.appendChild(bS);
-    var cap = document.createElement('div'); cap.style.cssText = 'display:flex;gap:70px;font-size:.75rem;opacity:.7;margin-top:-4px'; cap.innerHTML = '<span>minutos</span><span>segundos</span>';
-    var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 240 240'); svg.style.cssText = 'width:230px;height:230px;touch-action:none;cursor:pointer';
-    wrap.appendChild(disp); wrap.appendChild(cap); wrap.appendChild(svg); menuB.appendChild(wrap);
-    function setModo(c) {
-      champ = c; try { localStorage.setItem('bb_cont_mode', c ? 'champ' : 'train'); } catch (er) {}
-      bEnt.setAttribute('aria-pressed', !c); bCam.setAttribute('aria-pressed', c);
-      wrap.style.display = c ? 'none' : 'flex'; lb.hidden = c; champTxt.hidden = !c;
-    }
-    bEnt.onclick = function () { setModo(false); }; bCam.onclick = function () { setModo(true); };
-    setModo(champ);
-    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    var SEGS = [0, 15, 30, 45];
+    var cm = Math.max(1, Math.min(10, Math.floor(tot / 60))), cs2 = SEGS.reduce(function (a, b) { return Math.abs(b - tot % 60) < Math.abs(a - tot % 60) ? b : a; }, 0);
+    if (tot < 60) { cm = 1; cs2 = 0; }
+    var box = document.createElement('div'); box.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:10px';
+    var fila = document.createElement('div'); fila.style.cssText = 'display:flex;align-items:center;gap:10px';
+    var bMenos = document.createElement('button'), bMas = document.createElement('button'), vm = document.createElement('div');
+    bMenos.type = bMas.type = 'button'; bMenos.textContent = '−'; bMas.textContent = '+';
+    bMenos.setAttribute('aria-label', 'Menos minutos'); bMas.setAttribute('aria-label', 'Más minutos');
+    bMenos.style.cssText = bMas.style.cssText = 'width:52px;height:52px;border-radius:50%;font-size:1.8rem;font-weight:700;padding:0';
+    vm.style.cssText = 'min-width:120px;text-align:center;font-size:2.2rem;font-weight:800;line-height:1.1';
+    fila.appendChild(bMenos); fila.appendChild(vm); fila.appendChild(bMas); box.appendChild(fila);
+    var segs = document.createElement('div'); segs.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;justify-content:center';
+    var bS = SEGS.map(function (v) { var b = document.createElement('button'); b.type = 'button'; b.textContent = (v < 10 ? '0' : '') + v + ' s'; b.style.cssText = 'padding:8px 12px'; b.onclick = function () { cs2 = v; draw(); }; segs.appendChild(b); return b; });
+    box.appendChild(segs); menuB.appendChild(box);
     function draw() {
-      var v = mode2 === 0 ? cm : cs2, ang = v * 6 * Math.PI / 180, hx = 120 + Math.sin(ang) * 86, hy = 120 - Math.cos(ang) * 86, h = '<circle cx="120" cy="120" r="112" fill="#e6edf3"/>';
-      h += '<line x1="120" y1="120" x2="' + hx + '" y2="' + hy + '" stroke="#1eabd1" stroke-width="3"/><circle cx="120" cy="120" r="5" fill="#1eabd1"/><circle cx="' + hx + '" cy="' + hy + '" r="23" fill="#1eabd1"/>';
-      for (var k = 0; k < 12; k++) { var a2 = k * 30 * Math.PI / 180, lx = 120 + Math.sin(a2) * 86, ly = 120 - Math.cos(a2) * 86, on = (v === k * 5); h += '<text x="' + lx + '" y="' + (ly + 6) + '" text-anchor="middle" font-size="17" font-family="Roboto,Arial,sans-serif" fill="' + (on ? '#fff' : '#1b2a38') + '">' + pad(k * 5) + '</text>'; }
-      if (v % 5) h += '<text x="' + hx + '" y="' + (hy + 6) + '" text-anchor="middle" font-size="17" font-family="Roboto,Arial,sans-serif" fill="#fff">' + pad(v) + '</text>';
-      svg.innerHTML = h;
-      bM.textContent = pad(cm); bS.textContent = pad(cs2);
-      bM.style.background = mode2 === 0 ? '#1eabd1' : '#e6edf3'; bM.style.color = mode2 === 0 ? '#fff' : '#1b2a38';
-      bS.style.background = mode2 === 1 ? '#1eabd1' : '#e6edf3'; bS.style.color = mode2 === 1 ? '#fff' : '#1b2a38';
+      vm.innerHTML = cm + ' min' + (cs2 ? ' <span style="font-size:.7em">' + cs2 + ' s</span>' : '');
+      bMenos.disabled = cm <= 1; bMas.disabled = cm >= 10;
+      bS.forEach(function (b, i) { b.setAttribute('aria-pressed', SEGS[i] === cs2); });
     }
-    function setFrom(e) {
-      var r = svg.getBoundingClientRect(), x = e.clientX - (r.left + r.width / 2), y = e.clientY - (r.top + r.height / 2), a3 = Math.atan2(x, -y) * 180 / Math.PI; if (a3 < 0) a3 += 360;
-      var v = Math.round(a3 / 6) % 60; if (mode2 === 0) cm = v; else cs2 = v; draw();
-    }
-    var dragC = false;
-    svg.addEventListener('pointerdown', function (e) { dragC = true; svg.setPointerCapture(e.pointerId); setFrom(e); });
-    svg.addEventListener('pointermove', function (e) { if (dragC) setFrom(e); });
-    svg.addEventListener('pointerup', function () { if (dragC) { dragC = false; if (mode2 === 0) { mode2 = 1; draw(); } } });
+    bMenos.onclick = function () { if (cm > 1) cm--; draw(); }; bMas.onclick = function () { if (cm < 10) cm++; draw(); };
     draw();
-    menuBtn('Empezar concurso', function () { if (champ) { startContest(300, true); return; } var v = cm * 60 + cs2; if (v < 10) v = 10; try { localStorage.setItem('bb_cont_secs', String(v)); } catch (er) {} startContest(v); }).className = 'primary';
-    menuBtn('🏆 Ver ranking', showRanking);
+    menuBtn('Empezar concurso', function () { var v = cm * 60 + cs2; try { localStorage.setItem('bb_cont_secs', String(v)); } catch (er) {} startContest(v); }).className = 'primary';
     menuBtn('‹ Atrás', showShot).style.background = 'transparent';
   }
   function showTactic() {
