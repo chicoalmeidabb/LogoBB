@@ -283,7 +283,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v5.21',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v5.22',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -2857,7 +2857,7 @@
     menuBtn('Tiro', showShot);
     menuBtn('Técnica individual', function () { menuEl.hidden = true; window.dispatchEvent(new CustomEvent('bbopenacad', { detail: { group: 'tec', tab: 0 } })); });
     menuBtn('Táctica', showTactic);
-    menuBtn('Ejercicios de entrenamiento', function () { menuEl.hidden = true; window.dispatchEvent(new CustomEvent('bbopenacad', { detail: { group: 'ex', tab: 10 } })); });
+    if (window.BB_ENT) menuBtn('Ejercicios de entrenamiento', function () { menuEl.hidden = true; window.dispatchEvent(new CustomEvent('bbopenacad', { detail: { group: 'ex', tab: 10 } })); });
     menuBtn('Jugadas', null, true);
     menuBtn('Ayuda', showHelp).style.background = 'transparent';
     menuEl.hidden = false;
@@ -4682,9 +4682,26 @@
         if (!N.bd) {
           var rl = RW('flex-direction:column;align-items:stretch');
           Object.keys(NV_BD).forEach(function (k) { mk(rl, NV_BD[k], function () { nvBdElige(k); }); });
-          N.lib.forEach(function (e) { mk(rl, '★ ' + e.name, function () { nvCarga(e); }); });
+          N.lib.forEach(function (e) {
+            if (!window.BB_ENT) { mk(rl, '★ ' + e.name, function () { nvCarga(e); }); return; }
+            var rw = document.createElement('div'); rw.style.cssText = 'display:flex;gap:6px'; rl.appendChild(rw);
+            var b1 = mk(rw, '★ ' + e.name, function () { nvCarga(e); }); b1.style.flex = '1 1 auto';
+            mk(rw, 'Enviar', function () { N.envio = N.envio === e.name ? null : e.name; render(); }, N.envio === e.name);
+          });
+          if (window.BB_ENT && N.envio) {          // solo los entrenadores envían ejercicios
+            var ee = N.lib.filter(function (x) { return x.name === N.envio; })[0];
+            if (ee) {
+              var lkE = t3Base() + '#' + ejEnc(ee), txE = 'Ejercicio «' + ee.name + '» de Baloncesto Badajoz 3D. Ábrelo con la app instalada:\n' + lkE;
+              T('Enviar «' + ee.name + '»', 'font-weight:700');
+              var rs = RW();
+              var waE = document.createElement('a'); waE.href = 'https://wa.me/?text=' + encodeURIComponent(txE); waE.target = '_blank'; waE.rel = 'noopener'; waE.textContent = 'Abrir WhatsApp'; waE.style.cssText = 'display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;background:#1eabd1;color:#fff'; rs.appendChild(waE);
+              if (navigator.share) mk(rs, 'Compartir…', function () { navigator.share({ text: txE }).catch(function () {}); });
+              mk(rs, 'Copiar mensaje', function () { try { navigator.clipboard.writeText(txE).then(function () { msg('Mensaje copiado: pégalo en WhatsApp.'); render(); }, function () {}); } catch (er) {} });
+              mk(rs, 'Copiar solo el enlace', function () { try { navigator.clipboard.writeText(lkE).then(function () { msg('Enlace copiado.'); render(); }, function () {}); } catch (er) {} });
+            }
+          }
           if (!exFilasOn()) { var rn = RW(); CT(rn, 'Jugadores', EXS.n, function (d) { nvBdN(d * 2); }); }
-          T('Los ejercicios que guardes desde «Ejercicio libre» salen aquí con una estrella.', 'opacity:.8');
+          T('Los ejercicios que guardes desde «Ejercicio libre» salen aquí con una estrella.' + (window.BB_ENT ? ' Con «Enviar» los mandas por WhatsApp a otro entrenador.' : ''), 'opacity:.8');
         } else {
           T(NV_BD[N.bd], 'font-weight:700');
           var rr = RW();
@@ -4951,6 +4968,39 @@
     try { localStorage.setItem(key, JSON.stringify(a)); } catch (er) { return null; }
     return { n: d.n, name: nm };
   }
+  function ejEnc(e) {
+    var j = JSON.stringify(e, function (k, v) { return typeof v === 'number' ? Math.round(v * 100) / 100 : v; });
+    var u8 = unescape(encodeURIComponent(j)), hx = 'ej'; for (var q = 0; q < u8.length; q++) hx += ('0' + u8.charCodeAt(q).toString(16)).slice(-2);
+    return hx;
+  }
+  function ejDec(txt) {
+    try {
+      var mh = /ej([0-9a-f]{20,})/.exec(txt || ''); if (!mh) return null;
+      var hs = mh[1], u = ''; for (var q = 0; q + 1 < hs.length; q += 2) u += String.fromCharCode(parseInt(hs.substr(q, 2), 16));
+      var o = JSON.parse(decodeURIComponent(escape(u))), okq = function (p) { return Array.isArray(p) && p.length === 2 && isFinite(p[0]) && isFinite(p[1]); };
+      if (!o || typeof o.name !== 'string' || !isFinite(o.tn) || !isFinite(o.tb) || !isFinite(o.nc) || !Array.isArray(o.cones) || o.cones.length !== 8 || !o.cones.every(okq) || !Array.isArray(o.filas) || o.filas.length > 8 || !Array.isArray(o.acts) || o.acts.length > 60 || typeof o.roles !== 'object') return null;
+      o.name = o.name.slice(0, 40); return o;
+    } catch (er) { return null; }
+  }
+  function ejGuarda(o) {
+    var a = []; try { a = JSON.parse(localStorage.getItem('bbExLib') || '[]'); if (!Array.isArray(a)) a = []; } catch (er) { a = []; }
+    var nm = o.name, base = nm, k = 1; while (a.some(function (x) { return x.name === nm; })) { k++; nm = base.slice(0, 34) + ' (' + k + ')'; }
+    o.name = nm; a.push(o); try { localStorage.setItem('bbExLib', JSON.stringify(a)); } catch (er) { return null; }
+    try { if (EXS.nv) EXS.nv.lib = a; } catch (er) {}
+    return nm;
+  }
+  function ejBanner(o) {
+    var b = document.getElementById('rcvBan'); if (b) b.remove();
+    b = document.createElement('div'); b.id = 'rcvBan'; b.setAttribute('role', 'status');
+    b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:99999;max-width:92vw;background:#0f2a3a;color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.35);display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+    var tx = document.createElement('span'); b.appendChild(tx);
+    function bt(t, fn) { var x = document.createElement('button'); x.type = 'button'; x.textContent = t; x.style.cssText = 'font:inherit;padding:6px 12px;border-radius:10px;border:0;background:#1eabd1;color:#fff'; x.onclick = function () { fn(x); }; b.appendChild(x); }
+    if (!o) tx.textContent = 'No se ha podido leer el ejercicio.';
+    else if (!window.BB_ENT) tx.textContent = 'Te han enviado el ejercicio «' + o.name + '». Los ejercicios son solo para entrenadores: ábrelo desde la app del club.';
+    else { tx.textContent = 'Te han enviado el ejercicio «' + o.name + '».'; bt('Guardar en mi app', function (x) { var g = ejGuarda(o); tx.textContent = g ? 'Guardado como «' + g + '». Está en Ejercicios, Base de datos.' : 'No se ha podido guardar.'; x.remove(); }); }
+    bt('Cerrar', function () { b.remove(); });
+    document.body.appendChild(b);
+  }
   function t3Banner(r) {            // r = { d: jugada leída, txt: código } o null
     var b = document.getElementById('rcvBan'); if (b) b.remove();
     b = document.createElement('div'); b.id = 'rcvBan'; b.setAttribute('role', 'status');
@@ -4973,7 +5023,9 @@
     var tries = 0, iv = setInterval(function () { tries++; if ((bm && bm.textContent === 'Ver logo') || tries > 40) { clearInterval(iv); setTimeout(go, 300); } }, 250);
   }
   function t3Hash() {
-    var h = location.hash || ''; if (h.indexOf('BB1.') < 0 && !/#bj[0-9a-f]{20,}/.test(h)) return;
+    var h = location.hash || '';
+    if (/#ej[0-9a-f]{20,}/.test(h)) { ejBanner(ejDec(decodeURIComponent(h))); try { history.replaceState(null, '', location.pathname + location.search); } catch (er) {} return; }
+    if (h.indexOf('BB1.') < 0 && !/#bj[0-9a-f]{20,}/.test(h)) return;
     var txt = decodeURIComponent(h), d = t3Dec(txt); if (d) t3AutoOpen(d, txt); else t3Banner(null);
     try { history.replaceState(null, '', location.pathname + location.search); } catch (er) {}
   }
