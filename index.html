@@ -123,7 +123,7 @@
   .seg { display: inline-flex; gap: 6px; flex-wrap: wrap; }
   .labin { width: 100%; box-sizing: border-box; padding: 9px 11px; border-radius: 10px; border: 1px solid #b9d3e6; font-size: .85rem; font-family: inherit; background: #fff; color: #17324d; }
   .seg[hidden] { display: none; }
-  #acB0, #acT4, #acT5, #acT6, #acT7, #acT8, #acT9, #acT10, #acT11, #acT12 { font-weight: 700; }
+  #acB0, #acT4, #acT5, #acT6, #acT7, #acT8, #acT9, #acT10, #acT11, #acT12, #acT13, #acT14 { font-weight: 700; }
   .seg button { padding: 8px 13px; font-size: .8rem; }
   .player input {
     font: 600 16px var(--font-ui); color: var(--fg); background: var(--panel);
@@ -283,7 +283,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v5.20',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v5.21',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -430,8 +430,9 @@
   function blendStance(R, drop, lean, u, old) {
     stanceLegs(R.legs, R.body, R.lg, R.kn, drop, lean);
     if (u <= 0) return;
-    R.legs.scale.y += (old.scale - R.legs.scale.y) * u; R.body.position.y += (old.by - R.body.position.y) * u;
-    R.body.position.z *= (1 - u); R.body.rotation.x += (old.lean - R.body.rotation.x) * u;
+    var hyO = 1.35 + old.by;   // el tronco gira por la cadera: el desplazamiento sigue a la inclinación para que cadera y piernas no se separen
+    R.legs.scale.y += (old.scale - R.legs.scale.y) * u; R.body.position.y += (old.by + hyO * (1 - Math.cos(old.lean)) - R.body.position.y) * u;
+    R.body.position.z = R.body.position.z * (1 - u) + (-hyO * Math.sin(old.lean)) * u; R.body.rotation.x += (old.lean - R.body.rotation.x) * u;
     for (var i = 0; i < 2; i++) {
       R.lg[i].rotation.x += (old.rot[i] - R.lg[i].rotation.x) * u; R.kn[i].rotation.x += (old.kn[i] - R.kn[i].rotation.x) * u;
       R.lg[i].position.y += (old.py[i] - R.lg[i].position.y) * u;
@@ -567,13 +568,15 @@
   var elV = new THREE.Vector3(), poV = new THREE.Vector3(), dirV = new THREE.Vector3(), hcV = new THREE.Vector3();
   var pzV = new THREE.Vector3(), pxV = new THREE.Vector3(), mM = new THREE.Matrix4(), aimD = new THREE.Vector3();
   var handCur = [new THREE.Vector3(), new THREE.Vector3()], handInit = false;
-  function ik(bodyRef, arm, hand, hc0, sd, sn, cs, aim, flop, flare, fwo) {
+  function ik(bodyRef, arm, hand, hc0, sd, sn, cs, aim, flop, flare, fwo, ext) {
       if (flare === undefined) flare = 1;
       shV.set(sd * 0.4, 2.2, 0); bodyRef.localToWorld(shV);
       /* IK de dos huesos: el codo cae hacia abajo y afuera */
       axV.copy(hc0).sub(shV);
-      var d = axV.length(), dd = Math.min(LU + LF - 0.002, Math.max(Math.abs(LU - LF) + 0.02, d));
+      var d = axV.length();
       dirV.copy(axV).divideScalar(Math.max(d, 1e-4));
+      if (ext) d += (LU + LF - 0.001 - d) * ext;       // brazo totalmente estirado (sin doblar el codo)
+      var dd = Math.min(LU + LF - 0.002, Math.max(Math.abs(LU - LF) + 0.02, d));
       hcV.copy(shV).addScaledVector(dirV, dd);                         // mano alcanzable
       var a = (LU * LU - LF * LF + dd * dd) / (2 * dd), h = Math.sqrt(Math.max(0, LU * LU - a * a));
       var lowH = Math.max(0, Math.min(1, (shV.y - hc0.y - 0.45) / 0.45));   // mano muy por debajo del hombro: el codo va ATRÁS, nunca adelante
@@ -834,8 +837,8 @@
     acad.feet.forEach(function (m) { m.visible = false; }); if (acad.ring) acad.ring.visible = false;
     acad.passShown = true;
     /* --- pasador --- */
-    var u1 = sstep(0.62, tr, t) * (1 - sstep(tr + 0.55, tr + 1.2, t));
-    var ex = sstep(0.62, tr, t);
+    var u1 = sstep(0.62, tr, t) * (1 - sstep(tc, tc + 0.7, t));   // el pasador mantiene la posición hasta que el balón llega al compañero
+    var ex = sstep(0.62, tr, t) * (1 - sstep(tc + 0.25, tc + 0.9, t));
     var zp = PZ - 0.6 * u1;
     player.visible = pShadow.visible = true; player.scale.setScalar(Math.max(0.001, ps));
     dP.visible = dShadow.visible = true; dP.scale.setScalar(Math.max(0.001, ps));
@@ -843,7 +846,7 @@
     wTmp.set(0, 0, zp); W(wTmp);
     RP.root.position.set(0, 0, wTmp.z); RP.root.rotation.y = leg ? Math.PI : 0;
     RP.body.rotation.y = 0;
-    blendStance(RP, crouchP * (1 - u1) - 0.08 * (1 - u1), -0.12, u1, { scale: (1.35 + crouchP) / 0.98, by: crouchP, lean: -0.1 * u1, rot: [-0.52 * u1, 1.05 * u1], kn: [-0.05 * u1, -1.2 * u1], py: [0.98 - 0.98 * (1 - Math.cos(0.52 * u1)), 0.98] });   /* flexionado; al pasar, pie de atrás clavado y la derecha se adelanta */
+    blendStance(RP, crouchP * (1 - u1) - 0.08 * (1 - u1), -0.12, u1, { scale: (1.35 + crouchP) / 0.98, by: crouchP, lean: (P.type === 'chest' || P.type === 'bounce' ? -0.34 : -0.1) * u1, rot: [-0.52 * u1, 1.05 * u1], kn: [-0.05 * u1, -1.2 * u1], py: [0.98 - 0.98 * (1 - Math.cos(0.52 * u1)), 0.98] });   /* flexionado; al pasar, pie de atrás clavado y la derecha se adelanta */
     pony.visible = who.sex === 'f'; pony.rotation.x = -0.3 + Math.sin(time * 2.2) * 0.04; pony.rotation.z = Math.sin(time * 1.6) * 0.05;
     RP.sh.position.set(0, 0.012, wTmp.z); RP.sh.scale.setScalar(0.55);
     RP.root.updateMatrixWorld(true);
@@ -902,11 +905,11 @@
     armL.visible = armR.visible = handL.visible = handR.visible = vis;
     dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = vis;
     if (vis) {
-      var fl = sstep(tr, tr + 0.2, t) * (1 - sstep(tr + 0.9, tr + 1.3, t)) * (P.type === 'bounce' ? 0.5 : 0.8);
-      var fo = P.type !== 'over' ? sstep(tr - 0.05, tr + 0.18, t) * (1 - sstep(tr + 1.0, tr + 1.4, t)) : 0;   // brazos extendidos: palmas hacia fuera, pulgares abajo
+      var fl = sstep(tr, tr + 0.2, t) * (1 - sstep(tc + 0.1, tc + 0.5, t)) * (P.type === 'bounce' ? 0.5 : 0.8);
+      var fo = P.type !== 'over' ? sstep(tr - 0.05, tr + 0.18, t) * (1 - sstep(tc + 0.1, tc + 0.5, t)) : 0;   // brazos extendidos: palmas hacia fuera, pulgares abajo
       var fl2 = P.type !== 'over' ? fl * 0.15 : fl, fwd = leg ? 1 : -1;
       for (i = 0; i < 2; i++) { sd = i === 0 ? -1 : 1; pAim[i].copy(pBall).lerp(wTmp.set(hc[i].x + (leg ? -sd : sd) * 1.5, hc[i].y, hc[i].z), fo); }
-      ik(RP.body, RP.aL, RP.hL, hc[0], -1, 0, RP.cs, pAim[0], fl2, 0.3); ik(RP.body, RP.aR, RP.hR, hc[1], 1, 0, RP.cs, pAim[1], fl2, 0.3);
+      ik(RP.body, RP.aL, RP.hL, hc[0], -1, 0, RP.cs, pAim[0], fl2, 0.3, undefined, fo); ik(RP.body, RP.aR, RP.hR, hc[1], 1, 0, RP.cs, pAim[1], fl2, 0.3, undefined, fo);
       ik(RR.body, RR.aL, RR.hL, rc[0], -1, 0, RR.cs, pBall, 0, 0.5); ik(RR.body, RR.aR, RR.hR, rc[1], 1, 0, RR.cs, pBall, 0, 0.5);
     }
     handInit = false;
@@ -958,13 +961,13 @@
     player.visible = pShadow.visible = true; player.scale.setScalar(Math.max(0.001, ps));
     dP.visible = dShadow.visible = false;
     player.rotation.y = th; player.position.set(-cs * fx, 0, PIV_Z + sn * fx);
-    body.position.y = crouch; legs.scale.y = (1.35 + crouch) / 0.98; body.rotation.x = 0.05; body.rotation.y = 0;
+    var al = stanceLegs(legs, body, legG, [legG[0].userData.knee, legG[1].userData.knee], crouch, 0.05); body.rotation.y = 0;   // misma postura que el resto: cadera y piernas unidas
     var pl = legG[pf], fl = legG[ff];
     legG[0].position.x = -0.145; legG[1].position.x = 0.145;
-    pl.rotation.x = 0.35; pl.rotation.z = psd * 0.14; pl.position.y = 0.98; pl.userData.knee.rotation.x = -0.7;     // pie de pivote: clavado, rodilla flexionada
-    fl.rotation.x = fwdA + 0.35; fl.rotation.z = fs * (sideA + 0.14);
-    fl.position.y = 0.98 - 0.98 * (Math.cos(0.35) - Math.cos(fl.rotation.x) * Math.cos(fl.rotation.z));
-    fl.userData.knee.rotation.x = -0.7 - 0.6 * lift;
+    pl.rotation.z = psd * 0.1;                                                         // pie de pivote: clavado, rodilla flexionada
+    fl.rotation.x = al + fwdA; fl.rotation.z = fs * (sideA + 0.1);
+    fl.position.y = 0.98 * Math.cos(al) - 0.98 * (Math.cos(al) - Math.cos(fl.rotation.x) * Math.cos(fl.rotation.z)) * 0.6;
+    fl.userData.knee.rotation.x = -2 * al - 0.6 * lift;
     pony.visible = who.sex === 'f'; pony.rotation.x = -0.3 + Math.sin(time * 2.2) * 0.04; pony.rotation.z = Math.sin(time * 1.6) * 0.05;
     pShadow.position.set(player.position.x, 0.012, player.position.z); pShadow.scale.setScalar(0.55);
     player.updateMatrixWorld(true);
@@ -1071,9 +1074,11 @@
       var ci = i === 0 ? c : -c, si = i === 0 ? s : -s;
       R.lg[i].position.x = (i ? 1 : -1) * (0.145 + 0.12 * stK);
       if (special) { R.lg[i].position.y = 0.98; R.lg[i].rotation.x = 0.8 * sp * si + 0.2 * stK; R.lg[i].rotation.z = 0; R.kn[i].rotation.x = -(0.15 + 0.5 * stK + 1.0 * sp * Math.max(0, ci)); }
-      else { R.lg[i].rotation.x += (0.8 + 0.35 * runK) * sp * si; R.kn[i].rotation.x -= (1.0 + 0.6 * runK) * sp * Math.max(0, ci); }
+      else if (o.slide) { R.lg[i].rotation.x += 0.08 * sp * si; R.kn[i].rotation.x -= 0.2 * sp * Math.max(0, ci); }
+      else { var rw = Math.min(1, sp * 1.2), rA = 0.85 + 0.25 * runK; R.lg[i].rotation.x = R.lg[i].rotation.x * (1 - rw) + (0.15 + rA * si) * rw; R.kn[i].rotation.x = R.kn[i].rotation.x * (1 - rw) - (0.3 + (0.95 + 0.4 * runK) * Math.max(0, ci)) * rw; }   // carrera: zancada amplia y rodilla que se dobla al recuperar la pierna
     }
     if (o.legs) { for (i = 0; i < 2; i++) { R.lg[i].rotation.x = o.legs[i][0]; R.kn[i].rotation.x = -o.legs[i][1]; } }
+    if (o.slide) { for (i = 0; i < 2; i++) R.lg[i].rotation.z = (i ? 1 : -1) * (0.22 + 0.3 * sp * Math.max(0, Math.sin(R.ph * 0.8 + (i ? Math.PI : 0)))); }   // desplazamiento defensivo: pasos laterales sin cruzar los pies
     if (o.spread) { for (i = 0; i < 2; i++) R.lg[i].rotation.z = (i ? 1 : -1) * o.spread; }   // piernas muy abiertas en el apoyo lateral
     if (jf > 0) { R.lg[1].rotation.x = 1.6 * jf + R.lg[1].rotation.x * (1 - jf); R.kn[1].rotation.x = -1.5 * jf + R.kn[1].rotation.x * (1 - jf); R.lg[0].rotation.x *= (1 - jf); R.lg[0].rotation.x += 0.1 * jf; R.kn[0].rotation.x *= (1 - jf); }
     R.sh.position.set(x, 0.012, z); R.sh.scale.setScalar(0.55 * (1 - 0.35 * jf) * Math.max(0.001, ps));
@@ -1303,14 +1308,26 @@
       if (fin) return;
       var F = fr(P), s, to;
       if (st.k === 'exit') { if (held) return; s = st.side === 'L' ? -1 : 1; hand = s < 0 ? 'L' : 'R'; var fx0 = 0.5; to = labClamp([P[0] + F.r[0] * s * 1.5 + F.f[0] * fx0, P[1] + F.r[1] * s * 1.5 + F.f[1] * fx0]); seg('exit', 0.4, to, 'dribble'); dir = labUnit([0, 0], [F.f[0] + F.r[0] * s * 0.3, F.f[1] + F.r[1] * s * 0.3]); mv = true; for (var j = 1; j < (st.n || 1); j++) { to = labClamp([P[0] + dir[0] * 0.95, P[1] + dir[1] * 0.95]); seg('dribble', 0.4, to, 'dribble'); } }
+      else if (st.k === 'reverse' && st.keep) {          // reverso sin coger el balón: sigue botando y sale con la otra mano
+        if (held) return;
+        var dk0 = dir || F.f; to = labClamp([P[0] + dk0[0] * 0.3, P[1] + dk0[1] * 0.3]); seg('dribble', 0.4, to, 'dribble'); F = fr(P);
+        lastFoot = hand === 'R' ? 'L' : 'R';
+        var dsk = Math.abs(P[0]) > 0.15 ? (F.r[0] * (-P[0]) >= 0 ? 1 : -1) : (hand === 'L' ? 1 : -1), rsk = -dsk, hand0 = hand;
+        revDone = true;
+        to = labClamp([P[0] + F.r[0] * dsk * 0.7 + F.f[0] * 0.55, P[1] + F.r[1] * dsk * 0.7 + F.f[1] * 0.55]);
+        var rv1 = seg('reverse', 0.75, to, 'dribble', { crouch: 1.4, rot0: 0, rot1: 1.2 * Math.PI, rs: rsk, pf: (lastFoot === 'L' ? 'R' : 'L'), sp0: 0.1, sp1: 0.6 }); var pvK = lastFoot === 'L' ? 'R' : 'L';
+        hand = hand0 === 'R' ? 'L' : 'R';
+        to = labClamp([P[0] + F.f[0] * 0.9 + F.r[0] * dsk * 0.45, P[1] + F.f[1] * 0.9 + F.r[1] * dsk * 0.45]); lastFoot = pvK; var rv2 = stepSeg(to, 0.55); rv2.mode = 'dribble'; rv2.sp0 = 0.6; rv2.sp1 = 0.15; rv2.rot0 = 1.2 * Math.PI; rv2.rot1 = 2 * Math.PI; rv2.rs = rsk; rv2.crouch = 1.2;
+        mv = true; dir = fr(P).f;
+      }
       else if (st.k === 'reverse') {
         if (!held) { var dr0 = dir || F.f; to = labClamp([P[0] + dr0[0] * (mv ? 0.5 : 0.1), P[1] + dr0[1] * (mv ? 0.5 : 0.1)]); p0Seg(to); F = fr(P); }
         var dsg = Math.abs(P[0]) > 0.15 ? (F.r[0] * (-P[0]) >= 0 ? 1 : -1) : (hand === 'L' ? 1 : -1), rsg = -dsg;   // se desplaza hacia el centro de la zona (derecha del defensor); el giro va al lado contrario
         revDone = true; 
         to = labClamp([P[0] + F.r[0] * dsg * 0.7 + F.f[0] * 0.55, P[1] + F.r[1] * dsg * 0.7 + F.f[1] * 0.55]);
-        seg('reverse', 0.75, to, 'ball', { crouch: 2.2, rot0: 0, rot1: 1.2 * Math.PI, rs: rsg, pf: 'R', sp0: 0.1, sp1: 0.6 });   // gira sobre el pie izq. con las rodillas flexionadas, dando la espalda al defensor; el dcho. se apoya girando
-        to = labClamp([P[0] + F.f[0] * 0.9 + F.r[0] * dsg * 0.45, P[1] + F.f[1] * 0.9 + F.r[1] * dsg * 0.45]); lastFoot = 'R'; var rs2 = stepSeg(to, 0.55); rs2.sp0 = 0.6; rs2.sp1 = 0.15; rs2.rot0 = 1.2 * Math.PI; rs2.rot1 = 2 * Math.PI; rs2.rs = rsg; rs2.crouch = 1.6;   // termina el giro apoyando el izq., ya mirando a canasta
-        held = true; mv = true;
+        seg('reverse', 0.75, to, 'ball', { crouch: 2.2, rot0: 0, rot1: 1.2 * Math.PI, rs: rsg, pf: (lastFoot === 'L' ? 'R' : 'L'), sp0: 0.1, sp1: 0.6 }); var pvF = lastFoot === 'L' ? 'R' : 'L';   // gira sobre el pie izq. con las rodillas flexionadas, dando la espalda al defensor; el dcho. se apoya girando
+        to = labClamp([P[0] + F.f[0] * 0.9 + F.r[0] * dsg * 0.45, P[1] + F.f[1] * 0.9 + F.r[1] * dsg * 0.45]); lastFoot = pvF; var rs2 = stepSeg(to, 0.55); rs2.sp0 = 0.6; rs2.sp1 = 0.15; rs2.rot0 = 1.2 * Math.PI; rs2.rot1 = 2 * Math.PI; rs2.rs = rsg; rs2.crouch = 1.6;   // termina el giro apoyando el izq., ya mirando a canasta
+        held = true; mv = true; seg('hold', 0.5, P, 'ball', { crouch: 1.6 });   // acaba de frente, balón en las dos manos a la altura del pecho
       }
       else if (st.k === 'dribble') { if (held) return; var d = dir || F.f; for (var i = 0; i < st.n; i++) { to = labClamp([P[0] + d[0] * 0.95, P[1] + d[1] * 0.95]); seg('dribble', 0.4, to, 'dribble'); } mv = true; }
       else if (st.k === 'p0') { if (held) return; var d0 = dir || F.f; to = labClamp([P[0] + d0[0] * (mv ? 0.5 : 0.1), P[1] + d0[1] * (mv ? 0.5 : 0.1)]); p0Seg(to); }
@@ -1370,13 +1387,16 @@
     var pa = V.s1, seg = null, st = null, md = 'ball', o = { stance: 0.5 };
     if (go) { st = labAt(V.sc, t); pa = st.p; seg = st.s; md = seg.mode; }
     /* defensor: persigue al atacante (velocidad limitada) según la instrucción */
-    var D = V.d || {}, dp = V.dp;
-    if (go) {
+    var D = V.d || {}, dp = V.dp, paD = pa;
+    if (go) {      // reacción: el defensor responde con un pequeño retardo (≈0,3 s) a lo que hace el atacante
+      var hh = V.hist = V.hist || []; if (hh.length && t < hh[hh.length - 1][0] - 0.01) hh.length = 0;
+      hh.push([t, pa.slice()]); while (hh.length > 2 && hh[1][0] <= t - 0.3) hh.shift();
+      paD = hh[0][1];
       var steps = Math.max(1, Math.ceil(dt * acad.speed / 0.03)), h = dt * acad.speed / steps;
       for (var q = 0; q < steps; q++) {
-        var uH = labUnit(pa, [0, 0]), rr = [-uH[1], uH[0]], dist = D.style === 'tight' ? 0.75 : D.style === 'sag' ? 2.0 : 1.1, lat = D.force === 'L' ? 0.75 : D.force === 'R' ? -0.75 : 0;
-        var tg = labClamp([pa[0] + uH[0] * dist + rr[0] * lat, pa[1] + uH[1] * dist + rr[1] * lat]);
-        var dx = tg[0] - dp[0], dz = tg[1] - dp[1], dl = Math.hypot(dx, dz), sp = Math.min(dl, (D.style === 'tight' ? 3.0 : 2.6) * (seg && seg.rs !== undefined ? 0.3 : 1) * h * Math.min(1, dl / 0.4 + 0.3));   // el defensor se queda ‘cambiado’ mientras dura el giro
+        var uH = labUnit(paD, [0, 0]), rr = [-uH[1], uH[0]], dist = D.style === 'tight' ? 0.75 : D.style === 'late' ? 1.5 : D.style === 'sag' ? 2.0 : 1.1, lat = D.force === 'L' ? 0.75 : D.force === 'R' ? -0.75 : 0;
+        var tg = labClamp([paD[0] + uH[0] * dist + rr[0] * lat, paD[1] + uH[1] * dist + rr[1] * lat]);
+        var dx = tg[0] - dp[0], dz = tg[1] - dp[1], dl = Math.hypot(dx, dz), sp = Math.min(dl, (D.style === 'tight' ? 3.0 : D.style === 'late' ? 1.3 : 2.6) * (seg && seg.rs !== undefined ? 0.3 : 1) * h * Math.min(1, dl / 0.4 + 0.3));   // el defensor se queda ‘cambiado’ mientras dura el giro
         if (dl > 1e-4) { dp[0] += dx / dl * sp; dp[1] += dz / dl * sp; }
         var ox = dp[0] - pa[0], oz = dp[1] - pa[1], od = Math.hypot(ox, oz);
         if (od < 0.7) { dp[0] = pa[0] + ox / (od || 1) * 0.7; dp[1] = pa[1] + oz / (od || 1) * 0.7; }
@@ -1395,7 +1415,7 @@
     /* cámara que sigue al atacante y se acerca en el paso 0 */
     var zt = 0.36, mxT = 0, mzT = 5.0 * KC;
     if (go) { mxT = pa[0] * KC; mzT = pa[1] * KC; var inP0 = seg.k === 'p0' || (seg.k === 'step' && st.s0 !== undefined); zt = (seg.k === 'p0' || seg.k === 'reverse' || seg.k === 'step' || seg.k === 'high' || seg.k === 'up') ? 1.1 : 0.7; }
-    var kc = 1 - Math.exp(-dt * 4); acad.midX = (acad.midX || 0) + (mxT - (acad.midX || 0)) * kc; acad.midZ += (mzT - acad.midZ) * kc; oZoom += (zt - oZoom) * kc;
+    var kc = 1 - Math.exp(-dt * 4); if (!(acad.labFree && !go)) { acad.midX = (acad.midX || 0) + (mxT - (acad.midX || 0)) * kc; acad.midZ += (mzT - acad.midZ) * kc; oZoom += (zt - oZoom) * kc; }   // en el Reverso, parado, la cámara la mueve el usuario
     var lk = [0, 0];
     if (go && seg.rot1 !== undefined) { var hf = labUnit(pa, [0, 0]), th = seg.rs * (seg.rot0 + (seg.rot1 - seg.rot0) * sstep(0, 1, st.u)), ct = Math.cos(th), sn2 = Math.sin(th); lk = [pa[0] + (hf[0] * ct - hf[1] * sn2) * 3, pa[1] + (hf[0] * sn2 + hf[1] * ct) * 3]; }
     twoActor(T.a1, dt, time, ps, pa[0], pa[1], lk[0], lk[1], md, o);
@@ -1404,7 +1424,7 @@
     if (go && V.ringP && V.p0s && t < V.p0s.t1 + 1.0) { acad.ring.position.copy(V.ringP); acad.ring.scale.setScalar(1.6 + 0.25 * Math.sin(time * 9)); acad.ring.visible = true; } else acad.ring.visible = false;
     if (!go) V.ringP = null;
     var contest = go && D.contest && seg.k === 'high' && Math.hypot(dp[0] - pa[0], dp[1] - pa[1]) < 1.7, dj = contest ? 0.5 * Math.sin(Math.PI * Math.max(0, Math.min(1, (t - seg.t0 - 0.1) / 0.5))) : 0;
-    twoActor(T.d1, dt, time, ps, dp[0], dp[1], pa[0], pa[1], contest && dj > 0 ? 'high' : 'guard', { stance: 0.9, jump: dj });
+    twoActor(T.d1, dt, time, ps, dp[0], dp[1], pa[0], pa[1], contest && dj > 0 ? 'high' : 'guard', { stance: 0.9, jump: dj, slide: !!D.slide });
     if (V.noD) { var Rd = T.d1; Rd.root.visible = Rd.sh.visible = Rd.aL.visible = Rd.aR.visible = Rd.hL.visible = Rd.hR.visible = false; if (Rd.lab) Rd.lab.visible = false; dP.visible = dShadow.visible = dArmL.visible = dArmR.visible = dHandL.visible = dHandR.visible = false; }
     /* balón */
     var A1 = T.a1, bp = tpV, vis = true;
@@ -1647,7 +1667,7 @@
         keepG = { p: hP, at: hgpos.slice(), fx: hfx, fz: hfz };
         segs[hP].push({ k: 'hand', g: true, t0: hta, t1: hta + 0.7, a: cur[hP].slice(), b: cur[hP].slice(), q: hQ, fx: hfx, fz: hfz });
         segs[hQ].push({ k: 'hand', t0: hta, t1: hta + 0.7, a: cur[hQ].slice(), b: cur[hQ].slice(), q: hP });
-        ev.push({ k: 'pass', t0: hta + 0.15, t1: hta + 0.5, from: hP, to: hQ });
+        ev.push({ k: 'pass', hand: true, t0: hta + 0.1, t1: hta + 0.6, from: hP, to: hQ });
         if (MB) { has[hP] = false; has[hQ] = true; }
         busy[hP] = busy[hQ] = hta + 0.7; holder = hQ; end = hta + 0.7;
       } else if (st.k === 'pass') {
@@ -1828,7 +1848,7 @@
     }
     var fp = [0, 0];
     if (hNow >= 0) fp = pa[hNow];
-    else if (hNow === -2 && go) { var pf = V.sc.ev.filter(function (e) { return e.k === 'pass' && t >= e.t0 && t < e.t1; })[0]; if (pf) { var pfA = t3PosAt(V, pf.from, pf.t0), pfu = Math.min(0.85, (t - pf.t0) / (pf.t1 - pf.t0)); fp = [pfA[0] + (pa[pf.to][0] - pfA[0]) * pfu, pfA[1] + (pa[pf.to][1] - pfA[1]) * pfu]; } }   // en el aire: todos miran al balón
+    else if (hNow === -2 && go) { var pf = V.sc.ev.filter(function (e) { return e.k === 'pass' && t >= e.t0 && t < e.t1; })[0]; if (pf) { var pfA = t3PosAt(V, pf.from, pf.t0), pfu = pf.hand ? 0 : Math.min(0.85, (t - pf.t0) / (pf.t1 - pf.t0)); fp = [pfA[0] + (pa[pf.to][0] - pfA[0]) * pfu, pfA[1] + (pa[pf.to][1] - pfA[1]) * pfu]; } }   // en el aire: todos miran al balón
     var dbY = RB + 1.7 * Math.abs(Math.cos(time * 7)), scrAct = [];
     for (i = 0; i < n; i++) {
       var seg = go ? t3SegAt(V, i, t) : null, mvg = !!seg && (seg.k === 'go' || seg.k === 'cut' || seg.k === 'bota'), md = 'guard', o = { stance: 0.5 }, lx = i === hNow ? 0 : fp[0], lz = i === hNow ? 0 : fp[1];
@@ -1868,7 +1888,8 @@
     else if (!go) vis = false;
     else if (hNow === -2) {
       var pe = V.sc.ev.filter(function (e) { return e.k === 'pass' && t >= e.t0 && t < e.t1; })[0];
-      if (pe) { var A0 = t3PosAt(V, pe.from, pe.t0), B0 = AT[pe.to].root.position, uu = (t - pe.t0) / (pe.t1 - pe.t0); bp.set(A0[0] * KC + (B0.x - A0[0] * KC) * uu, 2.0 + 0.4 * Math.sin(Math.PI * uu), A0[1] * KC + (B0.z - A0[1] * KC) * uu); }
+      if (pe && pe.hand) { var uh = (t - pe.t0) / (pe.t1 - pe.t0), Rg = AT[pe.from], Rq = AT[pe.to], gx = (Rg.h[0].x + Rg.h[1].x) / 2, gy = (Rg.h[0].y + Rg.h[1].y) / 2, gz = (Rg.h[0].z + Rg.h[1].z) / 2, qx = (Rq.h[0].x + Rq.h[1].x) / 2, qy = (Rq.h[0].y + Rq.h[1].y) / 2, qz = (Rq.h[0].z + Rq.h[1].z) / 2, uq = Math.max(0, (uh - 0.75) / 0.25); bp.set(gx + (qx - gx) * uq, gy + (qy - gy) * uq, gz + (qz - gz) * uq); }   // mano a mano: el balón NO vuela, queda quieto en las manos del que lo da y pasa al otro al final
+      else if (pe) { var A0 = t3PosAt(V, pe.from, pe.t0), B0 = AT[pe.to].root.position, uu = (t - pe.t0) / (pe.t1 - pe.t0); bp.set(A0[0] * KC + (B0.x - A0[0] * KC) * uu, 2.0 + 0.4 * Math.sin(Math.PI * uu), A0[1] * KC + (B0.z - A0[1] * KC) * uu); }
     } else {
       var se = V.sc.ev.filter(function (e) { return e.k === 'shot' && t >= e.rel; })[0];
       if (se) {
@@ -1935,7 +1956,7 @@
       }
     }
     if (hNow >= 0) fp = pa[hNow];
-    else if (hNow === -2 && go) { var pf = V.sc.ev.filter(function (e) { return e.k === 'pass' && t >= e.t0 && t < e.t1; })[0]; if (pf) { var pfA = t3PosAt(V, pf.from, pf.t0), pfu = Math.min(0.85, (t - pf.t0) / (pf.t1 - pf.t0)); fp = [pfA[0] + (pa[pf.to][0] - pfA[0]) * pfu, pfA[1] + (pa[pf.to][1] - pfA[1]) * pfu]; } }
+    else if (hNow === -2 && go) { var pf = V.sc.ev.filter(function (e) { return e.k === 'pass' && t >= e.t0 && t < e.t1; })[0]; if (pf) { var pfA = t3PosAt(V, pf.from, pf.t0), pfu = pf.hand ? 0 : Math.min(0.85, (t - pf.t0) / (pf.t1 - pf.t0)); fp = [pfA[0] + (pa[pf.to][0] - pfA[0]) * pfu, pfA[1] + (pa[pf.to][1] - pfA[1]) * pfu]; } }
     var dbY = RB + 1.7 * Math.abs(Math.cos(time * 7));
     for (i = 0; i < n; i++) {
       var R = RR[i], isD = role[i] === 'D', person = String(((i + rot) % n) + 1);
@@ -1952,6 +1973,7 @@
       }
       if (!isD && seg && (seg.k === 'go' || seg.k === 'cut') && !conBalon(i)) md = 'run';   // corre con los brazos acompañando
       if (conBalon(i)) { md = mvg ? 'dribble' : 'ball'; o = { stance: 0.5, hand: 'R', hy: Math.max(1.2, Math.min(2.0, dbY + 0.35)) }; lx = 0; lz = 0; }
+      if (!seg && !isD && Math.abs(pa[i][0]) > 3) { var fb2 = -1, fbd = 1e9; for (var q4 = 0; q4 < n; q4++) { if (q4 === i || role[q4] === 'D' || Math.abs(pa[q4][0]) <= 3 || (pa[q4][0] > 0) === (pa[i][0] > 0)) continue; var dd4 = Math.abs(pa[q4][1] - pa[i][1]); if (dd4 < fbd) { fbd = dd4; fb2 = q4; } } if (fb2 >= 0) { lx = pa[fb2][0]; lz = pa[fb2][1]; } }   // en la fila: mira al compañero de enfrente, en la otra fila
       if (seg && seg.k === 'pass') { md = 'pass'; var ev0 = V.sc.ev.filter(function (e) { return e.k === 'pass' && e.from === i && Math.abs(e.t0 - (seg.t0 + 0.3)) < 1e-6; })[0]; if (ev0) { var rp = t3PosAt(V, ev0.to, t); lx = rp[0]; lz = rp[1]; }
         if (seg.sigue && t > seg.t0 + 0.22) { var nxg = V.sc.segs[i].filter(function (x) { return x.t0 >= seg.t1 - 0.01; })[0]; if (nxg) { md = 'run'; lx = px + (nxg.b[0] - nxg.a[0]); lz = pz + (nxg.b[1] - nxg.a[1]); } }   // suelta el balón y ya mira hacia donde va a correr
       }
@@ -1991,7 +2013,8 @@
     else if (!go) vis = false;
     else if (hNow === -2) {
       var pe = V.sc.ev.filter(function (e) { return e.k === 'pass' && t >= e.t0 && t < e.t1; })[0];
-      if (pe) { var A0 = t3PosAt(V, pe.from, pe.t0), B0 = RR[pe.to].root.position, uu = (t - pe.t0) / (pe.t1 - pe.t0); bp.set(A0[0] * KC + (B0.x - A0[0] * KC) * uu, 2.0 + 0.4 * Math.sin(Math.PI * uu), A0[1] * KC + (B0.z - A0[1] * KC) * uu); }
+      if (pe && pe.hand) { var uh = (t - pe.t0) / (pe.t1 - pe.t0), Rg = RR[pe.from], Rq = RR[pe.to], gx = (Rg.h[0].x + Rg.h[1].x) / 2, gy = (Rg.h[0].y + Rg.h[1].y) / 2, gz = (Rg.h[0].z + Rg.h[1].z) / 2, qx = (Rq.h[0].x + Rq.h[1].x) / 2, qy = (Rq.h[0].y + Rq.h[1].y) / 2, qz = (Rq.h[0].z + Rq.h[1].z) / 2, uq = Math.max(0, (uh - 0.75) / 0.25); bp.set(gx + (qx - gx) * uq, gy + (qy - gy) * uq, gz + (qz - gz) * uq); }   // mano a mano: el balón NO vuela, queda quieto en las manos del que lo da y pasa al otro al final
+      else if (pe) { var A0 = t3PosAt(V, pe.from, pe.t0), B0 = RR[pe.to].root.position, uu = (t - pe.t0) / (pe.t1 - pe.t0); bp.set(A0[0] * KC + (B0.x - A0[0] * KC) * uu, 2.0 + 0.4 * Math.sin(Math.PI * uu), A0[1] * KC + (B0.z - A0[1] * KC) * uu); }
     } else {
       var se = V.sc.ev.filter(function (e) { return e.k === 'shot' && t >= e.rel; })[0];
       if (se) {
@@ -2027,8 +2050,10 @@
     twoCut: function (c) { acad.twoCut = c; },
     twoBall: function (n) { acad.twoBall = n; if (acad.two) acad.two.ball = n; },
     playScreen: function (o) { o = o || {}; acad.scrPos = acad.scrPos || { s1: [0, 7.5], s2: [5, 5] }; acad.pass = null; acad.piv = null; acad.two = null; acad.lab = null; acad.scr = { noPass: !!o.place && !!acad.scrNoPass, pre: !!o.place && !!acad.scrPre, ball: o.place ? (acad.scrBall || 1) : 1, custom: !!o.place, mode: o.place ? 'place' : 'demo', s1: o.place ? acad.scrPos.s1 : [0, 7.5], s2: o.place ? acad.scrPos.s2 : [5, 5], t: 0, run: !o.place, pop: 1, choice: o.choice === 'ask' ? null : (o.choice || 'A'), ask: o.choice === 'ask', alt: o.choice === 'alt', nt: 0 }; acad.passOrbit = false; acad.midZ = 4.4 * KC; oYaw = -0.2; oPitch = 0.5; oZoom = 0.36; },
-    playLab: function () { acad.pass = null; acad.piv = null; acad.two = null; acad.scr = null; acad.labPos = acad.labPos || { s1: [0, 7.5], s2: [0, 6.3] }; acad.lab = { mode: 'place', t: 0, run: false, pop: 1, s1: acad.labPos.s1, s2: acad.labPos.s2, dp: acad.labPos.s2.slice(), minSep: 0.9, d: {} }; acad.passOrbit = false; acad.midZ = 5.0 * KC; oYaw = -0.2; oPitch = 0.5; oZoom = 0.36; },
-    playEntr: function (s1) { var first = !acad.lab; acad.pass = null; acad.piv = null; acad.two = null; acad.scr = null; acad.lab = { mode: 'place', t: 0, run: false, pop: 1, s1: s1.slice(), s2: [s1[0], s1[1] + 1.2], dp: [s1[0], s1[1] + 1.2], minSep: 0.9, d: {}, noD: true }; acad.passOrbit = false; if (first) { acad.midZ = 5.0 * KC; oYaw = -0.2; oPitch = 0.5; oZoom = 0.36; } },
+    labView: function (both) { acad.labFree = true; oYaw = 0; oPitch = 0.5; oZoom = 0.85; if (acad.lab) { var L = acad.lab; acad.midX = (both ? (L.s1[0] + L.s2[0]) / 2 : L.s1[0]) * KC; acad.midZ = (both ? (L.s1[1] + L.s2[1]) / 2 : L.s1[1]) * KC; } },
+    labNoD: function (b) { if (acad.lab) acad.lab.noD = !!b; },
+    playLab: function () { acad.labFree = true; acad.pass = null; acad.piv = null; acad.two = null; acad.scr = null; acad.labPos = acad.labPos || { s1: [0, 7.5], s2: [0, 6.3] }; acad.lab = { mode: 'place', t: 0, run: false, pop: 1, s1: acad.labPos.s1, s2: acad.labPos.s2, dp: acad.labPos.s2.slice(), minSep: 0.9, d: {} }; acad.passOrbit = false; acad.midZ = 5.0 * KC; oYaw = -0.2; oPitch = 0.5; oZoom = 0.36; },
+    playEntr: function (s1) { acad.labFree = true; var first = !acad.lab; acad.pass = null; acad.piv = null; acad.two = null; acad.scr = null; acad.lab = { mode: 'place', t: 0, run: false, pop: 1, s1: s1.slice(), s2: [s1[0], s1[1] + 1.2], dp: [s1[0], s1[1] + 1.2], minSep: 0.9, d: {}, noD: true }; acad.passOrbit = false; if (first) { acad.midZ = 5.0 * KC; oYaw = -0.2; oPitch = 0.5; oZoom = 0.36; } },
     labGo: function (sc, d) { var V = acad.lab; if (!V) return; V.d = d || {}; V.sc = { steps: sc.steps || [] }; labBuild(V, V.sc); V.mode = 'go'; V.t = 0; V.run = true; V.pop = 0; V.rp = null; V.fouled = false; V.p0s = null; V.ringP = null; V.dp = V.s2.slice(); if (TWO) { TWO.a1.init = TWO.d1.init = false; TWO.a1.hi = TWO.d1.hi = false; } },
     scrOpt: function (o) { if (o.noPass !== undefined) { acad.scrNoPass = o.noPass; if (acad.scr) acad.scr.noPass = o.noPass; } if (o.pre !== undefined) { acad.scrPre = o.pre; if (acad.scr) acad.scr.pre = o.pre; } },
     scrBall: function (n) { acad.scrBall = n; if (acad.scr) acad.scr.ball = n; },
@@ -2059,7 +2084,7 @@
       return out;
     },
     t3Replay: function (o) { var V = { n: o.n || 3, att: o.att.map(function (p) { return p.slice(); }), holder: o.holder, balls: o.balls ? o.balls.slice() : undefined }; t3Build(V, o.steps); return { att: V.sc.endAtt, holder: V.sc.endHolder, balls: V.sc.endBalls }; },
-    t3Orbit: function (on) { if (acad.t3) acad.t3.orbit = !!on; }, t3Pos: function () { return T3P; }, t3Names: function () { return T3N; }, exSet: function (o) { var V = acad.t3; if (!V) return; V.ex = true; if (o.role) V.role = o.role.slice(); if (o.mark) V.mark = o.mark.slice(); if (o.ayuda) V.ayuda = o.ayuda.slice(); if (o.balls) V.balls = o.balls.slice(); if (o.rot !== undefined) V.rot = o.rot; }, exDraw: function (on) { acad.exDrawOK = !!on; if (!on) { acad.exDraw = null; exLive(null); } }, exPaths: function (l, sel, cols) { exPathsSet(l, sel, cols); }, exCones: function (l) { if (l) l.forEach(function (p, i) { if (exConePos[i]) exConePos[i] = p.slice(); }); return exConePos.map(function (p) { return p.slice(); }); }, t3Marks: function (l) { t3Marks(l || []); }, t3DefAuto: function (p, b) { return t3DefAuto(p, b); }, t3HelpPos: function (m, b) { return t3HelpPos(m, b); },
+    t3Orbit: function (on) { if (acad.t3) acad.t3.orbit = !!on; }, t3Pos: function () { return T3P; }, t3Pop: function (p) { return t3Pop(p); }, t3Names: function () { return T3N; }, exSet: function (o) { var V = acad.t3; if (!V) return; V.ex = true; if (o.role) V.role = o.role.slice(); if (o.mark) V.mark = o.mark.slice(); if (o.ayuda) V.ayuda = o.ayuda.slice(); if (o.balls) V.balls = o.balls.slice(); if (o.rot !== undefined) V.rot = o.rot; }, exDraw: function (on) { acad.exDrawOK = !!on; if (!on) { acad.exDraw = null; exLive(null); } }, exPaths: function (l, sel, cols) { exPathsSet(l, sel, cols); }, exCones: function (l) { if (l) l.forEach(function (p, i) { if (exConePos[i]) exConePos[i] = p.slice(); }); return exConePos.map(function (p) { return p.slice(); }); }, t3Marks: function (l) { t3Marks(l || []); }, t3DefAuto: function (p, b) { return t3DefAuto(p, b); }, t3HelpPos: function (m, b) { return t3HelpPos(m, b); },
     stop: function () { acad.exDrawOK = false; acad.exDraw = acad.exPathDrag = null; exLive(null); exPathsSet([], -1); acad.midX = 0; acad.run = false; acad.pass = null; acad.piv = null; acad.two = acad.scr = acad.lab = acad.t3 = null; acad.feet.forEach(function (m) { m.visible = false; }); },
     speed: function (s) { acad.speed = s; },
     passOrbit: function (on) { acad.passOrbit = !!on; if (acad.pass) { acad.pass.pull = 0; } },
@@ -2503,7 +2528,7 @@
   }
   function twoPick(e) {
     var g = groundAt(e), V = acad.two || acad.scr || acad.lab; if (!g) return -1; g = [g[0] / KC, g[1] / KC];
-    var d1 = Math.hypot(g[0] - V.s1[0], g[1] - V.s1[1]), d2 = Math.hypot(g[0] - V.s2[0], g[1] - V.s2[1]);
+    var d1 = Math.hypot(g[0] - V.s1[0], g[1] - V.s1[1]), d2 = V.noD ? 99 : Math.hypot(g[0] - V.s2[0], g[1] - V.s2[1]);
     if (Math.min(d1, d2) > 1.9) return -1; return d1 <= d2 ? 0 : 1;
   }
   function twoMove(e) {
@@ -2584,7 +2609,8 @@
         var odx = e.clientX - last.x, ody = e.clientY - last.y;
         last.x = e.clientX; last.y = e.clientY;
         if (cont.on) cont.userCam = true;
-        if (acad.t3) { oYaw = Math.max(-1.2, Math.min(1.2, oYaw - odx * 0.003)); oPitch = Math.max(0.1, Math.min(0.9, oPitch + ody * 0.0015)); }
+        if (acad.t3 && acad.t3.n === 2) { oYaw -= odx * 0.008; oPitch = Math.max(-0.03, Math.min(1.14, oPitch + ody * 0.004)); }   // mano a mano: se puede girar 360°
+        else if (acad.t3) { oYaw = Math.max(-1.2, Math.min(1.2, oYaw - odx * 0.003)); oPitch = Math.max(0.1, Math.min(0.9, oPitch + ody * 0.0015)); }
         else { oYaw -= odx * 0.008; oPitch = Math.max(acad.on ? -0.03 : -0.5, Math.min(1.14, oPitch + ody * 0.004)); }
         return;
       }
@@ -2833,6 +2859,25 @@
     menuBtn('Táctica', showTactic);
     menuBtn('Ejercicios de entrenamiento', function () { menuEl.hidden = true; window.dispatchEvent(new CustomEvent('bbopenacad', { detail: { group: 'ex', tab: 10 } })); });
     menuBtn('Jugadas', null, true);
+    menuBtn('Ayuda', showHelp).style.background = 'transparent';
+    menuEl.hidden = false;
+  }
+  function showHelp() {
+    menuT.textContent = 'Ayuda'; menuB.innerHTML = '';
+    var SEC = [
+      ['Empezar', 'Toca el escudo y verás cómo se forma la canasta. Pon tu dorsal, tu nombre y tu equipo y pulsa «Empezar». Todo se guarda en tu tablet.'],
+      ['Mover la cámara', 'Arrastra con un dedo sobre el campo para girarlo. Pellizca con dos dedos para acercar o alejar. Donde lo dejes, se queda. En las pantallas con jugadores colocados, activa «Mover campo» para girar sin mover a los jugadores.'],
+      ['Tiro', 'Arrastra hacia abajo para dar fuerza, a los lados para apuntar y suelta para lanzar. Puedes elegir con o sin defensor, su nivel, y tirar con ayuda o libre. También hay concurso de triples y campeonato con ranking.'],
+      ['Técnica individual', 'Paso 0: la regla de los pasos y con qué pie se recoge el balón (entra por la derecha o por la izquierda). Pases: de pecho, picado y sobre la cabeza, en demostración o «Hazlo tú». Pivotes. Entradas a canasta. Mano a mano y Reverso: eliges lo que hace cada jugador, los colocas con el dedo y pulsas «Empezar». Cámara lenta ayuda a ver cada apoyo.'],
+      ['Táctica', 'Elige 1x1, 2x2, 3x3 o 5x5. Arrastra a los jugadores a su posición, toca a un jugador y elige qué hace: ir a otro sitio, cortar, pasar, mano a mano, bloquear o abrirse. Si cortas a canasta, dibujas con el dedo la línea por donde va. Pulsa «Jugar» para verlo, «Repetir la jugada» o «Inicio» para volver a empezar.'],
+      ['Ejercicios de entrenamiento', 'Solo para entrenadores. Arrastra los conos a la pista, toca un cono para poner una fila de jugadores con sus balones, y elige qué hace cada uno. Hay ejercicios ya hechos, como pasar y cortar, y puedes guardar los tuyos.'],
+      ['Entrenadores', 'Si entras desde el escudo de la app del club con tu nombre, se activan las opciones de entrenador: ejercicios y guardar jugadas.'],
+      ['Cámara lenta', 'En casi todas las pantallas hay un botón «Cámara lenta» para ver los movimientos con calma.']
+    ];
+    var box = document.createElement('div'); box.style.cssText = 'max-height:56vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;text-align:left;padding-right:4px';
+    SEC.forEach(function (x) { var d = document.createElement('div'); d.innerHTML = '<b>' + x[0] + '</b><br><span style="opacity:.9">' + x[1] + '</span>'; d.style.cssText = 'font-size:.9rem;line-height:1.4'; box.appendChild(d); });
+    menuB.appendChild(box);
+    menuBtn('‹ Menú', showMenu).style.background = 'transparent';
     menuEl.hidden = false;
   }
   function showShot() {
@@ -2890,7 +2935,7 @@
   function showTactic() {
     menuT.textContent = 'Táctica'; menuB.innerHTML = '';
     function go(tab, g, n) { return function () { menuEl.hidden = true; window.dispatchEvent(new CustomEvent('bbopenacad', { detail: { group: g, tab: tab, n: n } })); }; }
-    menuBtn('2x2', go(5, 'tac2')); menuBtn('3x3', go(9, 'tac3', 3)); menuBtn('5x5', go(9, 'tac5', 5));
+    menuBtn('1x1', go(7, 'tac1')); menuBtn('2x2', go(5, 'tac2')); menuBtn('3x3', go(9, 'tac3', 3)); menuBtn('5x5', go(9, 'tac5', 5));
     menuBtn('‹ Atrás', showMenu).style.background = 'transparent';
   }
   window.addEventListener('bbacadclosed', function (e) { if (e.detail && e.detail.grp !== 'all' && mode === 'court') showMenu(); });
@@ -2911,11 +2956,17 @@
     if (mode === 'court') { score = 0; made = 0; tries = 0; hudText(); newBall(true); setMoving(false); setOrbit(false); oYaw = oPitch = 0; oZoom = 1; }
     else { yaw = pitch = vYaw = vPitch = 0; zoom = 1; spin = true; bSpin.setAttribute('aria-pressed', true); }
   });
+  function crestCap(on) {
+    var e = document.getElementById('crestCap');
+    if (!e) { e = document.createElement('div'); e.id = 'crestCap'; e.style.cssText = 'position:fixed;left:0;right:0;top:78%;text-align:center;font:800 clamp(18px,3vw,30px) var(--font-ui);letter-spacing:.06em;color:var(--accent);pointer-events:none;z-index:6;text-transform:uppercase;text-shadow:0 1px 6px rgba(255,255,255,.8);transition:opacity .5s;opacity:0'; document.body.appendChild(e); }
+    if (on) { var nm = (who.num ? who.num + ' · ' : '') + (who.name || ''), tm = who.team || ''; e.innerHTML = (nm ? '<div>' + rkEsc(nm) + '</div>' : '') + (tm ? '<div style="font-size:.7em;opacity:.85">' + rkEsc(tm) + '</div>' : ''); e.style.opacity = (nm || tm) ? '1' : '0'; }
+    else e.style.opacity = '0';
+  }
   function setMode(m) {
     mode = m; aim = null; aimDots && (aimDots.visible = false);
     if (m === 'court') {
       newBall(true); spin = false; bSpin.setAttribute('aria-pressed', false); setMoving(false); setOrbit(false); oYaw = oPitch = 0; oZoom = 1;
-      bMode.textContent = 'Ver logo'; bMode.hidden = false; document.getElementById('tapHint').hidden = true; bMode.classList.remove('primary'); bSpin.hidden = true; bShoot.hidden = false; bMove.hidden = false; bField.hidden = false; document.getElementById('bMe').hidden = false; document.getElementById('bMenu').hidden = false; document.getElementById('bDefO').hidden = false; playerBox.hidden = !(setupAsk && !acad.on); setupAsk = false;
+      bMode.textContent = 'Ver logo'; bMode.hidden = false; document.getElementById('tapHint').hidden = true; bMode.classList.remove('primary'); bSpin.hidden = true; bShoot.hidden = false; bMove.hidden = false; bField.hidden = false; document.getElementById('bMe').hidden = false; document.getElementById('bMenu').hidden = false; document.getElementById('bDefO').hidden = false; var askNow = setupAsk && !acad.on; setupAsk = false; playerBox.hidden = true; crestCap(true); setTimeout(function () { crestCap(false); if (askNow && mode === 'court' && !acad.on) playerBox.hidden = false; }, reduce ? 250 : 2700);   // se deja ver cómo la canasta se forma desde el escudo antes de pedir los datos
       sub.textContent = 'Arrastra hacia abajo para dar fuerza y a los lados para apuntar. Suelta para lanzar.';
       hud.hidden = false; hudText();
     } else {
@@ -3177,6 +3228,8 @@
       <button id="acT8" type="button" aria-pressed="false">1x1</button>
       <button id="acT9" type="button" aria-pressed="false">Entradas</button>
       <button id="acT12" type="button" aria-pressed="false">Mano a mano</button>
+      <button id="acT13" type="button" aria-pressed="false">Reverso</button>
+      <button id="acT14" type="button" aria-pressed="false">Defensa</button>
       <button id="acT10" type="button" aria-pressed="false">3x3</button>
       <button id="acT11" type="button" aria-pressed="false">Ejercicios</button>
     </div>
@@ -3191,7 +3244,7 @@
 <script>
 (function () {
   var wrap = document.getElementById('acad'), body = document.getElementById('acBody');
-  var tabBtns = [document.getElementById('acT1'), document.getElementById('acT2'), document.getElementById('acT3'), document.getElementById('acT4'), document.getElementById('acT5'), document.getElementById('acT6'), document.getElementById('acT7'), document.getElementById('acT8'), document.getElementById('acT9'), document.getElementById('acT10'), document.getElementById('acT11'), document.getElementById('acT12')];
+  var tabBtns = [document.getElementById('acT1'), document.getElementById('acT2'), document.getElementById('acT3'), document.getElementById('acT4'), document.getElementById('acT5'), document.getElementById('acT6'), document.getElementById('acT7'), document.getElementById('acT8'), document.getElementById('acT9'), document.getElementById('acT10'), document.getElementById('acT11'), document.getElementById('acT12'), document.getElementById('acT13'), document.getElementById('acT14')];
   var LAB = { B: 'Bote', G: 'Paso 0 · recoge', '1': 'Paso 1', '2': 'Paso 2', '3': 'Paso 3', S: 'Tiro', D: 'Bote otra vez', R: 'Recibe el pase' };
   var PLAYS = [
     { t: 'BBBG12S', a: 'legal', why: 'Recoge el balón (paso 0, no cuenta), da el paso 1 y el 2 y lanza. Dos pasos tras recoger: legal.' },
@@ -3226,8 +3279,8 @@
     f.textContent = e.detail.txt; f.hidden = false; clearTimeout(pivT); pivT = setTimeout(function () { f.hidden = true; }, 1100);
   });
   function stopAnim() { var fl = document.getElementById('acFlash'); if (fl) fl.hidden = true; if (A) A.stop(); }
-  function slowBtn() { return '<button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button><button type="button" id="acHand" aria-pressed="' + (A.hand() === 'L') + '">Bota con la izquierda</button>'; }
-  function bindSlow() { var hb = document.getElementById('acHand'); if (hb) hb.onclick = function () { var l = A.hand() !== 'L'; A.hand(l ? 'L' : 'R'); hb.setAttribute('aria-pressed', l); }; var b = document.getElementById('acSlow'); if (b) b.onclick = function () { slow = !slow; b.setAttribute('aria-pressed', slow); A.speed(slow ? 0.45 : 1); }; }
+  function slowBtn(noHand) { return '<button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button>' + (noHand ? '' : '<button type="button" id="acHandR" aria-pressed="' + (A.hand() !== 'L') + '">Entra por la derecha</button><button type="button" id="acHandL" aria-pressed="' + (A.hand() === 'L') + '">Entra por la izquierda</button>'); }
+  function bindSlow() { var hR = document.getElementById('acHandR'), hL = document.getElementById('acHandL'); function setH(l) { A.hand(l ? 'L' : 'R'); if (hR) hR.setAttribute('aria-pressed', !l); if (hL) hL.setAttribute('aria-pressed', l); } if (hR) hR.onclick = function () { setH(false); }; if (hL) hL.onclick = function () { setH(true); }; var b = document.getElementById('acSlow'); if (b) b.onclick = function () { slow = !slow; b.setAttribute('aria-pressed', slow); A.speed(slow ? 0.45 : 1); }; }
   var HINT = '<p class="acn">Arrastra sobre el campo para girar y ver al jugador desde otros ángulos · pellizca para acercar</p>';
 
   function viewRule() {
@@ -3235,7 +3288,7 @@
     body.innerHTML = HINT + '<div class="acchips" id="acChips"></div><div class="acopts">' + slowBtn() + '</div>' +
       '<ol class="acs"><li><b>Mientras botas</b> puedes avanzar sin límite de pasos.</li>' +
       '<li><b>Paso cero:</b> es el apoyo en el que recoges el balón con las manos al acabar el bote (o al recibir un pase en carrera). <b>No cuenta</b> como paso. Mira el disco naranja del suelo.</li>' +
-      '<li><b>¿Con qué pie?</b> Si botas con la <b>derecha</b>, recoges el balón al apoyar el pie <b>izquierdo</b> (ese es el paso 0), y el 1 es con el derecho. Si botas con la <b>izquierda</b>, el paso 0 es el pie <b>derecho</b>. Prueba el botón de abajo.</li>' +
+      '<li><b>¿Con qué pie?</b> <b>Entra por la derecha:</b> botas con la derecha, recoges el balón al apoyar el pie <b>izquierdo</b> (ese es el paso 0), luego derecho (1), izquierdo (2) y canasta. <b>Entra por la izquierda:</b> botas con la izquierda, recoges al apoyar el pie <b>derecho</b> (paso 0), luego izquierdo (1), derecho (2) y canasta. Prueba los botones de arriba.</li>' +
       '<li>Después puedes dar <b>dos pasos</b> (el 1 y el 2) y debes lanzar o pasar. Un tercer paso es <b>pasos</b>.</li>' +
       '<li>Una vez recogido el balón <b>no puedes volver a botar</b>: serían <b>dobles</b>.</li></ol>' +
       '<p class="acn">Resumen: bote → recoge (0) → 1 → 2 → tiro. Los criterios pueden variar según la categoría y el árbitro; pregunta siempre a tu entrenador.</p>';
@@ -3315,7 +3368,7 @@
       (passManual ? '<p class="acn"><b>Arrastra hacia abajo sobre el campo</b> (como en el tiro) para echar atrás al jugador y <b>suelta</b> para pasar. Cuanto más arrastras, más fuerte sale el pase.</p>' : '') +
       '<div class="acq">' + P.n + '</div><ol class="acs">' + P.pts.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ol>' +
       '<p class="acn"><b>El receptor:</b> ofrece las manos como blanco, mira el balón hasta que llega y lo recoge hacia el pecho para amortiguarlo.</p>' +
-      '<div class="acopts">' + (passManual ? '' : '<button type="button" id="acRep">Ver otra vez</button>') + slowBtn() + '</div>';
+      '<div class="acopts">' + (passManual ? '' : '<button type="button" id="acRep">Ver otra vez</button>') + slowBtn(true) + '</div>';
     bindSlow();
     function go() { A.stop(); A.speed(slow ? 0.45 : 1); A.playPass(passType, { loop: true, manual: passManual }); A.passOrbit(passManual && passGiro); }
     go();
@@ -3424,7 +3477,7 @@
       if (fin) { notes.push({ ok: false, t: 'Después de tirar o entrar ya no hace nada más: se ignora "' + h.w + '".' }); return; }
       if (h.g === 'exit') { var sd = /izq/.test(after) ? 'L' : /der/.test(after) ? 'R' : /izq/.test(before) ? 'L' : /der/.test(before) ? 'R' : null; if (!sd) { notes.push({ ok: false, t: 'Salida sin lado: digo "izquierda" o "derecha". Uso la derecha.' }); sd = 'R'; } steps.push({ k: 'exit', side: sd }); notes.push({ ok: true, t: 'Salida por la ' + (sd === 'L' ? 'izquierda' : 'derecha') + ' (botando)' }); }
       else if (h.g === 'dribble') { var n = labNum(before) || labNum(after.slice(0, 12)) || 1, sd2 = /izq/.test(after) ? 'L' : /der/.test(after) ? 'R' : null; steps.push(sd2 ? { k: 'exit', side: sd2, n: n } : { k: 'dribble', n: n }); notes.push({ ok: true, t: 'Bota ' + n }); }
-      else if (h.g === 'reverse') { var rsd = /izq/.test(after) ? 'L' : /der/.test(after) ? 'R' : null; steps.push({ k: 'reverse', side: rsd }); notes.push({ ok: true, t: 'Reverso' }); }
+      else if (h.g === 'reverse') { var rsd = /izq/.test(after) ? 'L' : /der/.test(after) ? 'R' : null; var kp = /sin coger|sin recoger|siguiendo|sigue botando|sin parar/.test(after); steps.push(kp ? { k: 'reverse', side: rsd, keep: true } : { k: 'reverse', side: rsd }); notes.push({ ok: true, t: kp ? 'Reverso sin coger el balón' : 'Reverso' }); }
       else if (h.g === 'steps') { var nn = labNums(h.w), cnt = nn.length ? nn[nn.length - 1] : 3; steps.push({ k: 'steps', n: cnt }); notes.push({ ok: true, t: 'Da ' + cnt + ' pasos con el balón' }); }
       else if (h.g === 'p0') { steps.push({ k: 'p0' }); notes.push({ ok: true, t: 'Paso 0' }); }
       else if (h.g === 'stop') { steps.push({ k: 'stop' }); notes.push({ ok: true, t: 'Se para (recoge el balón)' }); }
@@ -3445,11 +3498,11 @@
   }
   var labSA = [], labSD = [], labMsg = '';
   function labTxt(st) {
-    return st.k === 'reverse' ? 'Reverso: paso 0, gira dando la espalda al defensor y a la canasta, apoya dcho. e izq.' : st.k === 'steps' ? 'Da ' + st.n + ' pasos con el balón en la mano' : st.k === 'p0' ? 'Paso 0: recoge el balón en movimiento' : st.k === 'exit' ? 'Salida por la ' + (st.side === 'L' ? 'izquierda' : 'derecha') + (st.n > 1 ? ', botando ' + st.n + ' veces' : ' (botando)') : st.k === 'dribble' ? 'Bota ' + st.n + (st.n === 1 ? ' vez' : ' veces') + ' avanzando' : st.k === 'stop' ? 'Se para (recoge el balón)' : st.k === 'shoot' ? 'Tira' : st.k === 'drive' ? 'Entra a canasta y hace bandeja'
+    return st.k === 'reverse' && st.keep ? 'Reverso sin coger el balón: apoya el pie, gira y sigue botando con la otra mano' : st.k === 'reverse' ? 'Reverso: paso 0, gira dando la espalda al defensor y a la canasta, apoya dcho. e izq.' : st.k === 'steps' ? 'Da ' + st.n + ' pasos con el balón en la mano' : st.k === 'p0' ? 'Paso 0: recoge el balón en movimiento' : st.k === 'exit' ? 'Salida por la ' + (st.side === 'L' ? 'izquierda' : 'derecha') + (st.n > 1 ? ', botando ' + st.n + ' veces' : ' (botando)') : st.k === 'dribble' ? 'Bota ' + st.n + (st.n === 1 ? ' vez' : ' veces') + ' avanzando' : st.k === 'stop' ? 'Se para (recoge el balón)' : st.k === 'shoot' ? 'Tira' : st.k === 'drive' ? 'Entra a canasta y hace bandeja'
       : st.k === 'style' ? (st.v === 'tight' ? 'Defiende pegado' : 'Defiende suelto, se queda abajo') : st.k === 'force' ? 'Le obliga a ir por la ' + (st.v === 'L' ? 'izquierda' : 'derecha') + ' del atacante' : 'Salta a molestar el tiro';
   }
   function labPush(list, st) { var l = list[list.length - 1]; if (st.k === 'dribble' && l && l.k === 'exit') l.n = st.n; else if (st.k === 'dribble' && l && l.k === 'dribble') l.n = Math.min(6, l.n + st.n); else list.push(st); }
-  function labCheck(list) { var held = false, fin = false; return list.map(function (st) { if (fin) return 'dead'; var r = 'ok'; if ((st.k === 'exit' || st.k === 'dribble') && held) r = 'dobles'; else if (st.k === 'steps') { if (st.n > 2) { r = 'pasos'; fin = true; } held = true; } else if (st.k === 'p0' || st.k === 'stop' || st.k === 'reverse') held = true; else if (st.k === 'shoot' || st.k === 'drive') fin = true; return r; }); }
+  function labCheck(list) { var held = false, fin = false; return list.map(function (st) { if (fin) return 'dead'; var r = 'ok'; if ((st.k === 'exit' || st.k === 'dribble') && held) r = 'dobles'; else if (st.k === 'steps') { if (st.n > 2) { r = 'pasos'; fin = true; } held = true; } else if (st.k === 'p0' || st.k === 'stop' || (st.k === 'reverse' && !st.keep)) held = true; else if (st.k === 'shoot' || st.k === 'drive') fin = true; return r; }); }
   function labDef(list) { var d = { style: 'norm', force: null, contest: false }; list.forEach(function (x) { if (x.k === 'style') d.style = x.v; else if (x.k === 'force') d.force = x.v; else if (x.k === 'contest') d.contest = true; }); return d; }
   function labItems(txt) {
     var s = labNorm(txt), r = [];
@@ -3461,18 +3514,16 @@
   }
   function viewLab() {
     stopAnim();
-    var AC = [['Sale por la izquierda', { k: 'exit', side: 'L' }], ['Sale por la derecha', { k: 'exit', side: 'R' }], ['Bota 1', { k: 'dribble', n: 1 }], ['Bota 2', { k: 'dribble', n: 2 }], ['Para', { k: 'stop' }], ['Reverso', { k: 'reverse' }], ['Paso 0', { k: 'p0' }], ['Tira', { k: 'shoot' }], ['Entra a canasta', { k: 'drive' }]];
+    var AC = [['Sale por la izquierda', { k: 'exit', side: 'L' }], ['Sale por la derecha', { k: 'exit', side: 'R' }], ['Bota 1', { k: 'dribble', n: 1 }], ['Bota 2', { k: 'dribble', n: 2 }], ['Para', { k: 'stop' }], ['Reverso (cogiendo balón)', { k: 'reverse' }], ['Reverso (siguiendo botando)', { k: 'reverse', keep: true }], ['Paso 0', { k: 'p0' }], ['Tira', { k: 'shoot' }], ['Entra a canasta', { k: 'drive' }]];
     var DC = [['Pegado', { k: 'style', v: 'tight' }], ['Suelto, se queda abajo', { k: 'style', v: 'sag' }], ['Le obliga a ir por la izquierda', { k: 'force', v: 'L' }], ['Le obliga a ir por la derecha', { k: 'force', v: 'R' }], ['Salta a taponar', { k: 'contest' }]];
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    body.innerHTML = '<p class="acn"><b>Técnica 1x1.</b> Arrastra al <b>atacante</b> (aro naranja, con balón) y al <b>defensor</b> (aro rojo). Construye lo que hace cada uno con los botones, uno detrás de otro; puedes <b>borrar o reordenar</b> cada paso. Luego pulsa <b>Jugar</b>.</p>' +
+    body.innerHTML = '<p class="acn"><b>Técnica 1x1.</b> Arrastra al <b>atacante</b> (aro naranja, con balón); el defensor (aro rojo) defiende solo, con un pequeño retardo. Construye lo que hace con los botones, uno detrás de otro; puedes <b>borrar o reordenar</b> cada paso. Luego pulsa <b>Jugar</b>.</p>' +
       '<label class="acn"><b>Atacante</b></label><ol class="acs" id="labLA"></ol>' +
       '<div class="acopts">' + AC.map(function (c, i) { return '<button type="button" data-a="' + i + '">' + c[0] + '</button>'; }).join('') + '</div>' +
-      '<label class="acn"><b>Defensor</b></label><ol class="acs" id="labLD"></ol>' +
-      '<div class="acopts">' + DC.map(function (c, i) { return '<button type="button" data-d="' + i + '">' + c[0] + '</button>'; }).join('') + '</div>' +
       '<div id="labMsg" class="acn" style="color:#c0392b"></div>' +
       '<div class="acopts"><button type="button" id="labGo" class="primary">Jugar</button>' + '<button type="button" id="labClr">Borrar todo</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>';
     bindSlow();
-    var la = document.getElementById('labLA'), ld = document.getElementById('labLD'), msg = document.getElementById('labMsg');
+    var la = document.getElementById('labLA'), ld = null, msg = document.getElementById('labMsg');
     function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
     function draw(ol, list, empty) {
       if (!list.length) { ol.innerHTML = '<li style="list-style:none;opacity:.65">' + empty + '</li>'; return; }
@@ -3491,23 +3542,65 @@
         };
       });
     }
-    function render() { draw(la, labSA, 'Todavía no hay pasos: añade el primero.'); draw(ld, labSD, 'Defiende normal, a un paso del atacante.'); msg.textContent = labMsg; }
+    function render() { draw(la, labSA, 'Todavía no hay pasos: añade el primero.'); msg.textContent = labMsg; }
     function addAny(txt) {
       var p = labParseA(txt), r = labItems(txt); labMsg = '';
       if (!p.steps.length && !r.length) { labMsg = txt.trim() ? 'No he entendido "' + txt.trim() + '". Prueba: "sale por la izquierda, bota 2, paso cero y entra a canasta" o "pegado".' : ''; render(); return; }
-      p.steps.forEach(function (st) { labPush(labSA, st); }); r.forEach(function (x) { labSD.push(x); });
+      p.steps.forEach(function (st) { labPush(labSA, st); });
       p.notes.forEach(function (n) { if (!n.ok) labMsg += n.t + ' '; }); render();
     }
     function addA(txt) { var p = labParseA(txt); labMsg = ''; p.notes.forEach(function (n) { if (!n.ok) labMsg += n.t + ' '; }); p.steps.forEach(function (st) { labPush(labSA, st); }); render(); }
     function addD(txt) { var r = labItems(txt); labMsg = r.length || !txt.trim() ? '' : 'No he reconocido nada: prueba "pegado", "suelto" o "le obliga a ir por la derecha".'; r.forEach(function (x) { labSD.push(x); }); render(); }
     Array.prototype.forEach.call(body.querySelectorAll('[data-a]'), function (b) { b.onclick = function () { var st0 = JSON.parse(JSON.stringify(AC[+b.getAttribute('data-a')][1])); labPush(labSA, st0); labMsg = ''; render(); if (st0.k === 'shoot' || st0.k === 'drive') document.getElementById('labGo').onclick(); }; });
-    Array.prototype.forEach.call(body.querySelectorAll('[data-d]'), function (b) { b.onclick = function () { labSD.push(JSON.parse(JSON.stringify(DC[+b.getAttribute('data-d')][1]))); labMsg = ''; render(); }; });
-    document.getElementById('labClr').onclick = function () { labSA = []; labSD = []; labMsg = ''; render(); };
-    document.getElementById('labGo').onclick = function () { if (!labSA.length) { labMsg = 'Añade al menos un paso al atacante.'; render(); return; } A.speed(slow ? 0.45 : 1); A.labGo({ steps: labSA.slice() }, labDef(labSD)); };
+        document.getElementById('labClr').onclick = function () { labSA = []; labSD = []; labMsg = ''; render(); };
+    document.getElementById('labGo').onclick = function () { if (!labSA.length) { labMsg = 'Añade al menos un paso al atacante.'; render(); return; } A.speed(slow ? 0.45 : 1); A.labNoD(false); A.labGo({ steps: labSA.slice() }, labDef([])); };
     render();
-    A.stop(); A.speed(slow ? 0.45 : 1); A.playLab();
+    A.stop(); A.speed(slow ? 0.45 : 1); A.playLab(); A.labView(true); A.labNoD(false);
   }
 
+
+  var revDef = true, revSide = 'R', revKeep = false, revEnd = 'drive';
+  function viewRev() {
+    stopAnim();
+    body.innerHTML = '<p class="acn"><b>Reverso.</b> Arrastra al <b>atacante</b> (aro naranja) y, si lo usas, al <b>defensor</b> (aro rojo). Viene botando y puedes elegir: <b>cogiendo el balón</b> (se para en dos tiempos, gira de espaldas pivotando sobre un pie, acaba de frente con el balón en las dos manos y tira) o <b>sin coger el balón</b> (apoya el pie, gira y sigue botando con la otra mano y después entra a canasta o tira; en 3x3 y 5x5 también podrá pasar). Si va por la derecha, no coge el balón hasta apoyar el pie izquierdo; si va por la izquierda, hasta apoyar el derecho. <b>Arrastra el campo</b> con el dedo para girarlo y <b>arrastra a los jugadores</b> para moverlos.</p>' +
+      '<div class="acopts"><button type="button" id="rvBal" aria-pressed="' + !revKeep + '">Reverso cogiendo el balón</button><button type="button" id="rvBot" aria-pressed="' + revKeep + '">Reverso sin coger el balón (sigue botando)</button></div>' +
+      '<div class="acopts" id="rvEndW"><button type="button" id="rvE1" aria-pressed="' + (revEnd === 'drive') + '">Después entra a canasta</button><button type="button" id="rvE2" aria-pressed="' + (revEnd === 'shoot') + '">Después tira</button></div>' +
+      '<div class="acopts"><button type="button" id="rvCon" aria-pressed="' + revDef + '">Con defensa</button><button type="button" id="rvSin" aria-pressed="' + !revDef + '">Sin defensa</button></div>' +
+      '<div class="acopts"><button type="button" id="rvL" aria-pressed="' + (revSide === 'L') + '">Sale por la izquierda</button><button type="button" id="rvR" aria-pressed="' + (revSide === 'R') + '">Sale por la derecha</button></div>' +
+      '<div class="acopts"><button type="button" id="rvGo" class="primary">Empezar</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>';
+    bindSlow();
+    function sync() { A.labNoD(!revDef); document.getElementById('rvEndW').hidden = !revKeep; ['rvCon', 'rvSin', 'rvL', 'rvR', 'rvBal', 'rvBot', 'rvE1', 'rvE2'].forEach(function (id) { var on = id === 'rvE1' ? revEnd === 'drive' : id === 'rvE2' ? revEnd === 'shoot' : id === 'rvBal' ? !revKeep : id === 'rvBot' ? revKeep : id === 'rvCon' ? revDef : id === 'rvSin' ? !revDef : id === 'rvL' ? revSide === 'L' : revSide === 'R'; document.getElementById(id).setAttribute('aria-pressed', on); }); }
+    document.getElementById('rvE1').onclick = function () { revEnd = 'drive'; sync(); };
+    document.getElementById('rvE2').onclick = function () { revEnd = 'shoot'; sync(); };
+    document.getElementById('rvBal').onclick = function () { revKeep = false; sync(); };
+    document.getElementById('rvBot').onclick = function () { revKeep = true; sync(); };
+    document.getElementById('rvCon').onclick = function () { revDef = true; sync(); };
+    document.getElementById('rvSin').onclick = function () { revDef = false; sync(); };
+    document.getElementById('rvL').onclick = function () { revSide = 'L'; sync(); };
+    document.getElementById('rvR').onclick = function () { revSide = 'R'; sync(); };
+    document.getElementById('rvGo').onclick = function () { A.speed(slow ? 0.45 : 1); A.labNoD(!revDef); A.labGo({ steps: revKeep ? [{ k: 'exit', side: revSide, n: 2 }, { k: 'reverse', keep: true }, { k: revEnd }] : [{ k: 'exit', side: revSide, n: 2 }, { k: 'reverse' }, { k: 'shoot' }] }, labDef(revDef ? [{ k: 'style', v: 'late' }] : [])); };
+    A.stop(); A.speed(slow ? 0.45 : 1); A.playLab(); A.labView(); sync();
+  }
+
+  var defMode = 'pos', defDir = 'L';
+  function viewDef() {
+    stopAnim();
+    var pos = defMode === 'pos';
+    body.innerHTML = '<div class="acopts"><button type="button" id="dfPos" aria-pressed="' + pos + '">Posición defensiva</button><button type="button" id="dfMov" aria-pressed="' + !pos + '">Desplazamiento defensivo</button></div>' +
+      (pos ? '<ol class="acs"><li><b>Pies</b> algo más abiertos que los hombros, peso sobre la parte delantera de los pies.</li><li><b>Rodillas flexionadas</b> y cadera baja, como si te fueras a sentar.</li><li><b>Espalda recta</b> y cabeza alta, mirando al pecho del atacante.</li><li><b>Brazos abiertos</b>: una mano en la línea de pase y la otra frente al balón.</li><li>Colócate a <b>un brazo de distancia</b>, entre el atacante y la canasta.</li></ol>' :
+        '<p class="acn"><b>Desplazamiento defensivo.</b> Elige hacia dónde va el atacante y pulsa Empezar. El defensor se mueve con <b>pasos laterales</b>, sin cruzar los pies, sin juntarlos y siempre con las rodillas flexionadas.</p>' +
+        '<div class="acopts"><button type="button" id="dfL" aria-pressed="' + (defDir === 'L') + '">Va a su izquierda</button><button type="button" id="dfR" aria-pressed="' + (defDir === 'R') + '">Va a su derecha</button><button type="button" id="dfF" aria-pressed="' + (defDir === 'F') + '">Entra hacia canasta</button></div>' +
+        '<div class="acopts"><button type="button" id="dfGo" class="primary">Empezar</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>') +
+      '<p class="acn">Arrastra el campo para girarlo y pellizca para acercar.</p>';
+    if (!pos) bindSlow();
+    document.getElementById('dfPos').onclick = function () { defMode = 'pos'; viewDef(); };
+    document.getElementById('dfMov').onclick = function () { defMode = 'mov'; viewDef(); };
+    if (!pos) {
+      ['L', 'R', 'F'].forEach(function (d) { document.getElementById('df' + d).onclick = function () { defDir = d; ['L', 'R', 'F'].forEach(function (e) { document.getElementById('df' + e).setAttribute('aria-pressed', e === d); }); }; });
+      document.getElementById('dfGo').onclick = function () { A.speed(slow ? 0.45 : 1); A.labNoD(false); A.labGo({ steps: [defDir === 'F' ? { k: 'dribble', n: 3 } : { k: 'exit', side: defDir, n: 3 }] }, { style: 'norm', force: null, contest: false, slide: true }); };
+    }
+    A.stop(); A.speed(slow ? 0.45 : 1); A.playLab(); A.labView(true); A.labNoD(false);
+  }
   function viewMano() {
     T3S.m2 = T3S.m2 || { r: null, g: null }; if (T3S.n !== 2) { T3S.m2 = { r: null, g: null }; T3S.n = 2; T3S.noDef = true; T3S.att = null; T3S.def = null; T3S.init = null; T3S.chain = []; T3S.steps = []; T3S.pend = null; T3S.playing = false; T3S.queue = []; T3S.holder = 0; T3S.sel = { t: 'a', i: 0 }; T3S.help = t3F(false); T3S.dman = t3F(false); }
     viewT3();
@@ -3560,10 +3653,8 @@
       ['aro', 'Aro pasado', 'Los pasos se dan aún más cerca de la canasta: el segundo queda justo debajo del aro y finalizas por el otro lado.']];
     var SIDES = [['R', 'Por la derecha'], ['L', 'Por la izquierda'], ['C', 'Por el centro']];
     function btns(list, attr) { return list.map(function (x) { return '<button type="button" data-' + attr + '="' + x[0] + '">' + x[1] + '</button>'; }).join(''); }
-    body.innerHTML = '<p class="acn"><b>Entradas a canasta.</b> Elige el lado, si botas o recibes el pase, y el tipo de entrada. Arrastra sobre el campo para verla desde otros ángulos.</p>' +
+    body.innerHTML = '<p class="acn"><b>Entradas a canasta.</b> Elige el lado por el que entra. Arrastra sobre el campo para verla desde otros ángulos.</p>' +
       '<label class="acn"><b>Lado</b></label><div class="acopts" id="enS">' + btns(SIDES, 's') + '</div>' +
-      '<label class="acn"><b>Salida</b></label><div class="acopts" id="enB"><button type="button" data-b="1">Con bote</button><button type="button" data-b="0">Sin bote (recibe el pase)</button></div>' +
-      '<label class="acn"><b>Tipo</b></label><div class="acopts" id="enK">' + btns(KINDS, 'k') + '</div>' +
       '<div class="acn" id="enT"></div>' +
       '<div class="acopts"><button type="button" id="enGo" class="primary">Ver la entrada</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>';
     bindSlow();
@@ -3694,6 +3785,8 @@
       T3S.chain = ch; T3S.steps = []; T3S.pend = null; t3AutoDef(); elM.style.color = '#1b6f8a'; elM.textContent = txt; render();
     }
     // flechas dibujadas con el dedo (desplazamientos y cortes)
+    function m2Hand() { var dxe = T3S.att[1][0] - T3S.att[0][0]; return { k: 'hand', p: 0, to: 1, mode: 'bota', side: dxe > 0.1 ? 'I' : 'D' }; }
+    function m2Start() { try { return A.t3Replay({ n: 2, att: T3S.att, holder: 0, steps: [m2Hand()] }).att[0].slice(); } catch (er) { return T3S.att[0].slice(); } }
     function t3Lineas() { var l = []; (T3S.chain || []).concat(T3S.steps).forEach(function (x, i) { if (x.path) l.push(i); }); return l; }
     T3S.recorrido = function (pts) {
       var pn = T3S.pend; if (T3S.playing || !pn || !(pn.k === 'go' || pn.k === 'cut') || pn.p === null || !pts || pts.length < 2) return;
@@ -3864,7 +3957,7 @@
       var lnI = t3Lineas(); if (T3S.selPath != null && T3S.selPath >= lnI.length) T3S.selPath = null;
       A.exDraw(!T3S.playing && !!askPos && !T3S.orbit);
       var drawnP = lnI.map(function (k) { return (T3S.chain || []).concat(T3S.steps)[k].path; }), autoP = [], colsP = drawnP.map(function () { return ''; });
-      if (T3S.n === 2 && T3S.m2 && T3S.m2.path && T3S.m2.g === 'canasta' && !(T3S.chain && T3S.chain.length) && !T3S.steps.length) autoP = [T3S.m2.path];
+      if (T3S.n === 2 && T3S.m2 && T3S.m2.g && !(T3S.chain && T3S.chain.length) && !T3S.steps.length) { if (T3S.m2.path) autoP = [T3S.m2.path]; else if (T3S.m2.g === 'abre') { var hs0 = m2Start(); autoP = [[hs0, A.t3Pop(hs0)]]; } }
       A.exPaths(drawnP.concat(autoP), T3S.selPath == null ? -1 : T3S.selPath, colsP.concat(autoP.map(function () { return 'A'; })));
       elP.innerHTML = ''; NM.forEach(function (nm) { mk(elP, nm, function () { place(nm); }); });
       var elK = document.getElementById('t3Mk'); elK.innerHTML = '';
@@ -3921,8 +4014,10 @@
               if (M2.g === o[0]) { M2.g = null; M2.path = null; T3S.pend = null; elM.textContent = ''; render(); return; }
               M2.g = o[0]; M2.path = null; T3S.pend = null;
               if (o[0] === 'canasta') { T3S.pend = { k: 'cut', p: 0, forM2: true }; elM.style.color = '#1b6f8a'; elM.textContent = 'Dibuja con el dedo en la pista por dónde corta el 1 hacia canasta.'; }
+              else { T3S.pend = { k: 'go', p: 0, forM2: true }; elM.style.color = '#1b6f8a'; elM.textContent = 'La flecha naranja muestra hacia dónde se abre el 1. Si quieres otro sitio, dibuja tú la flecha con el dedo.'; }
               render();
             }, M2.g === o[0]); });
+            if (M2.g === 'abre') { var ha = document.createElement('div'); ha.className = 'acn'; ha.style.cssText = 'grid-column:1 / -1'; ha.textContent = M2.path ? 'Flecha dibujada por ti: así se abre el 1.' : 'La flecha muestra hacia dónde se abre el 1 (hacia fuera del triple, alejándose de la canasta). Puedes dibujar otra con el dedo.'; elV.appendChild(ha); if (M2.path) mk(elV, 'Volver a la flecha automática', function () { M2.path = null; T3S.pend = { k: 'go', p: 0, forM2: true }; render(); }); else mk(elV, 'Dibujar mi flecha', function () { T3S.pend = { k: 'go', p: 0, forM2: true }; elM.style.color = '#1b6f8a'; elM.textContent = 'Dibuja con el dedo hacia dónde se abre el 1.'; render(); }); }
             if (M2.g === 'canasta') { var hl = document.createElement('div'); hl.className = 'acn'; hl.style.cssText = 'grid-column:1 / -1'; hl.textContent = M2.path ? 'Línea dibujada. Si quieres, pulsa «Dibujar otra vez».' : 'Dibuja con el dedo en la pista por dónde corta el 1 (si no dibujas nada, corta a un lado de la canasta).'; elV.appendChild(hl); if (M2.path) mk(elV, 'Dibujar otra vez', function () { M2.path = null; T3S.pend = { k: 'cut', p: 0, forM2: true }; elM.textContent = 'Dibuja con el dedo en la pista por dónde corta el 1.'; render(); }); }
             hh('3) Coloca a los dos jugadores y pulsa Empezar');
             var eb = mk(elV, 'Empezar', function () {
@@ -3935,7 +4030,8 @@
                 sts.push(ln ? { k: 'cut', p: 0, to: 'la flecha dibujada', xy: ln[ln.length - 1].slice(), path: ln, direct: true, par: true, velLike: 1, vf: 0.7 } : { k: 'cut', p: 0, to: gd, par: true, velLike: 1, vf: 0.7 });
                 sts.push({ k: 'pass', p: 1, to: 0, par: true, alLlegar: true }, { k: 'shoot', p: 0 }); M2.path = null; addMany(sts); return;
               }
-              if (M2.g === 'abre') { sts.push({ k: 'go', p: 1, to: 'P1', bounces: 2 }, { k: 'go', p: 0, to: 'fuera del triple', pop: true, par: true, velLike: 1 }, { k: 'pass', p: 1, to: 0, par: true, alLlegar: true }, { k: 'shoot', p: 0 }); addMany(sts); return; }
+              if (M2.g === 'abre') { var lna = M2.path && M2.path.length > 1 ? [m2Start()].concat(M2.path.slice(1)) : null; M2.path = null;
+                sts.push({ k: 'go', p: 1, to: 'P1', bounces: 2 }, lna ? { k: 'go', p: 0, to: 'la flecha dibujada', xy: lna[lna.length - 1].slice(), path: lna, direct: true, par: true, velLike: 1 } : { k: 'go', p: 0, to: 'fuera del triple', pop: true, par: true, velLike: 1 }, { k: 'pass', p: 1, to: 0, par: true, alLlegar: true }, { k: 'shoot', p: 0 }); addMany(sts); return; }
               if (M2.r === 'entra') { sts.push({ k: 'go', p: 1, to: 'PZ', bounces: 2 }); fin = { k: 'drive', p: 1, own: true }; }
               else if (M2.r === 'tira') { sts.push({ k: 'go', p: 1, to: 'P1', bounces: 2 }); fin = { k: 'shoot', p: 1, own: true }; }
               else if (M2.r === 'pasa') { sts.push({ k: 'go', p: 1, to: 'P1', bounces: 2 }); fin = { k: 'pass', p: 1, to: 0, own: true }; }
@@ -4890,15 +4986,15 @@
     if (n < 3) lastSub = n;
     tabBtns.forEach(function (b, i) { b.setAttribute('aria-pressed', i === n); });
     blk0.setAttribute('aria-pressed', n < 3); subSeg.hidden = n >= 3;
-    if (n === 0) viewRule(); else if (n === 1) viewPlays(true); else if (n === 2) viewQuiz(true); else if (n === 3) viewPass(); else if (n === 4) viewPiv(); else if (n === 5) viewTwo(); else if (n === 6) viewScr(); else if (n === 7) viewLab(); else if (n === 8) viewEntr(); else if (n === 10) viewEX(); else if (n === 11) viewMano(); else viewT3();
+    if (n === 0) viewRule(); else if (n === 1) viewPlays(true); else if (n === 2) viewQuiz(true); else if (n === 3) viewPass(); else if (n === 4) viewPiv(); else if (n === 5) viewTwo(); else if (n === 6) viewScr(); else if (n === 7) viewLab(); else if (n === 8) viewEntr(); else if (n === 10) viewEX(); else if (n === 11) viewMano(); else if (n === 12) viewRev(); else if (n === 13) viewDef(); else viewT3();
     body.parentNode.scrollTop = 0;
   }
   tabBtns.forEach(function (b, i) { b.addEventListener('click', function () { tab(i); }); });
   blk0.addEventListener('click', function () { tab(lastSub); });
   var isOpen = false, grp = 'all', openTab = 0;
   function applyGrp() {
-    var vis = grp === 'ex' ? ['acT11', 'acT8'] : grp === 'tec' ? ['acB0', 'acT4', 'acT5', 'acT9', 'acT12'] : grp === 'tac1' ? ['acT8'] : grp === 'tac2' ? ['acT6', 'acT7'] : (grp === 'tac3' || grp === 'tac5') ? ['acT10'] : grp === 'tac' ? ['acT6', 'acT7', 'acT8', 'acT10'] : ['acB0', 'acT4', 'acT5', 'acT6', 'acT7', 'acT8', 'acT9', 'acT10'];
-    ['acB0', 'acT4', 'acT5', 'acT6', 'acT7', 'acT8', 'acT9', 'acT10', 'acT11', 'acT12'].forEach(function (id) { document.getElementById(id).hidden = vis.indexOf(id) < 0; });
+    var vis = grp === 'ex' ? ['acT11'] : grp === 'tec' ? ['acB0', 'acT4', 'acT5', 'acT9', 'acT12', 'acT13'] : grp === 'tac1' ? ['acT8'] : grp === 'tac2' ? ['acT6', 'acT7'] : (grp === 'tac3' || grp === 'tac5') ? ['acT10'] : grp === 'tac' ? ['acT6', 'acT7', 'acT8', 'acT10'] : ['acB0', 'acT4', 'acT5', 'acT6', 'acT7', 'acT8', 'acT9', 'acT10'];
+    ['acB0', 'acT4', 'acT5', 'acT6', 'acT7', 'acT8', 'acT9', 'acT10', 'acT11', 'acT12', 'acT13', 'acT14'].forEach(function (id) { document.getElementById(id).hidden = vis.indexOf(id) < 0; });
     document.querySelector('.acad-sheet .seg[aria-label="Ejercicio"]').hidden = grp === 'tac1' || grp === 'tac3' || grp === 'tac5';
     document.querySelector('.acad-top h2').textContent = grp === 'ex' ? 'Ejercicios de entrenamiento' : grp === 'tec' ? 'Técnica individual' : grp === 'tac1' ? 'Táctica · 1x1' : grp === 'tac2' ? 'Táctica · 2x2' : grp === 'tac3' ? 'Táctica · 3x3' : grp === 'tac5' ? 'Táctica · 5x5' : grp === 'tac' ? 'Táctica' : 'Academia · Ejercicios';
   }
