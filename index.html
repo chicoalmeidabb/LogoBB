@@ -283,7 +283,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v5.17',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v5.18',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -1053,7 +1053,8 @@
     var dx = x - R.px, dz = z - R.pz, sp0 = R.init && dt > 1e-4 ? Math.hypot(dx, dz) / dt : 0; R.px = x; R.pz = z;
     if (sp0 > 16) sp0 = 0;
     R.spd += (sp0 - R.spd) * Math.min(1, dt * 10);
-    var sp = Math.min(1, R.spd / 2.6), yt = Math.atan2(-(fx - x), -(fz - z));
+    var sp = Math.min(1, R.spd / 2.6), yt = Math.atan2(-(fx - x), -(fz - z)), hsd = 1;
+    if (o.partner) { var hdx = o.partner[0] * KC - x, hdz = o.partner[1] * KC - z; hsd = (hdx * Math.cos(yt) - hdz * Math.sin(yt)) >= 0 ? 1 : -1; }
     if (!R.init) R.yaw = yt;
     var df = yt - R.yaw; df = Math.atan2(Math.sin(df), Math.cos(df)); R.yaw += df * (1 - Math.exp(-dt * 11));
     var runK = Math.max(0, Math.min(1, (R.spd - 3.2) / 5));       // 0 = andar / trotar, 1 = carrera
@@ -1087,6 +1088,8 @@
       else if (mode === 'dribble') { if (i === (o.hand === 'L' ? 0 : 1)) { lx = 0.42 * sd; ly = o.hy || 1.7; lz = -0.55; } else { lx = 0.45 * sd; ly = 1.75; lz = -0.45; } }
       else if (mode === 'screen') { lx = 0.15 * sd; ly = 1.25; lz = -0.35; }
       else if (mode === 'ask') { lx = 0.2 * sd; ly = 2.1; lz = -0.95; }
+      else if (mode === 'hgive') { var hcx = 0.5 * hsd; if (sd === hsd) { lx = hcx + 0.13 * hsd; ly = 1.36; lz = -0.42; } else { lx = hcx - 0.13 * hsd; ly = 1.68; lz = -0.42; } }
+      else if (mode === 'htake') { if (sd === hsd) { lx = 0.48 * hsd; ly = 1.3; lz = -0.5; } else { lx = 0.3 * hsd; ly = 1.38; lz = -0.34; } }
       else if (mode === 'pass') { lx = 0.2 * sd; ly = 2.15; lz = -1.45; }
       else if (mode === 'up') { if (i === 1) { lx = 0.1; ly = 3.55; lz = -0.55; } else { lx = -0.22; ly = 3.0; lz = -0.4; } }
       else if (mode === 'high') { lx = 0.45 * sd; ly = 3.3; lz = -0.4; }
@@ -1596,7 +1599,11 @@
       if (hexit && st.p === hexit.q && st.k !== 'hand') {      // el que ha recibido sale botando por detrás del que le dio el balón
         var hx = hexit; hexit = null;
         if (st.k === 'bota' || st.k === 'drive' || ((st.k === 'go' || st.k === 'cut') && !(st.path && st.path.length))) {
-          curAvoid = hx.g; curHand = hx.hand; /* sin rodeo: va directo a donde se le diga, con la mano contraria al lado donde estaba */
+          curAvoid = hx.g; curHand = hx.hand;
+          /* sale botando por la espalda del que le ha dado el balón y luego va a donde se le diga */
+          var gpx = cur[hx.g], rpx = cur[st.p], fvx = (keepG && keepG.p === hx.g) ? [keepG.fx - gpx[0], keepG.fz - gpx[1]] : [0 - gpx[0], 0.3 - gpx[1]], flx = Math.hypot(fvx[0], fvx[1]) || 1;
+          var bwx = t3Clamp([gpx[0] - fvx[0] / flx * 0.95, gpx[1] - fvx[1] / flx * 0.95]);
+          if (dist(rpx, bwx) > 0.25) mv(st.p, bwx, 3.2, 'go', Math.max(base, busy[st.p]));
         }
       }
       if (st.k === 'stop') {                   // parada (antes de tirar)
@@ -1621,7 +1628,7 @@
         } else { var s = mv(st.p, dst, (st.k === 'cut' || st.fast) ? velSin(st.p, 4.4, true) : velSin(st.p, 2.7, false), st.k, t0); end = s.t1; }
       } else if (st.k === 'hand') {            // mano a mano: opción 'bota' (el del balón va botando) u opción 'viene' (el otro va a por el balón)
         if (!tiene(st.p) || (MB && has[st.to]) || st.to === st.p) return;
-        var hP = st.p, hQ = st.to, hbk = [0, 0.3], hw = 0.85, hta, hsg = st.side === 'I' ? -1 : 1;
+        var hP = st.p, hQ = st.to, hbk = [0, 0.3], hw = 0.55, hta, hsg = st.side === 'I' ? -1 : 1;
         t0 = Math.max(base, busy[hP], busy[hQ]);
         if (st.mode === 'viene') {      // el que recibe llega por detrás: el del balón queda entre la canasta y él
           var hgp = cur[hP], hag = t3Clamp([hgp[0] + hsg * hw, hgp[1]]);
@@ -1832,7 +1839,7 @@
       if (avd) { lx = pa[i][0] + (seg.b[0] - seg.a[0]); lz = pa[i][1] + (seg.b[1] - seg.a[1]); if (Math.hypot(seg.b[0] - seg.a[0], seg.b[1] - seg.a[1]) < 0.01) { lx = lz = 0; avd = false; } }
       if (i === hNow) { md = mvg ? 'dribble' : 'ball'; o = { stance: 0.5, hand: (seg && seg.hnd) ? seg.hnd : (mvg && seg && Math.abs(seg.b[0] - seg.a[0]) > 0.05) ? (seg.b[0] > seg.a[0] ? 'R' : 'L') : t3Hand(pa[i], lx, lz), hy: Math.max(1.2, Math.min(2.0, dbY + 0.35)) }; }
       if (seg && seg.k === 'pass') md = 'pass';
-      if (seg && seg.k === 'hand') md = seg.g ? 'pass' : 'ask';
+      if (seg && seg.k === 'hand') { md = seg.g ? 'hgive' : 'htake'; o.partner = pa[seg.q]; }
       if (seg && seg.k === 'screen') md = 'screen';
       var sqa = -1, isMv = function (x) { return x.k === 'go' || x.k === 'cut'; };      // el bloqueador no se mueve del bloqueo hasta que su compañero se mueve; entonces se da la vuelta
       if (go && V.sc) {
@@ -3605,6 +3612,7 @@
       }
       if (i === pn.p) return true;
       if (pn.k === 'pass') { add({ k: 'pass', p: pn.p, to: i }); return true; }
+      if (pn.k === 'hand' && pn.to === undefined) { var dxh = T3S.att[i][0] - T3S.att[pn.p][0]; add({ k: 'hand', p: pn.p, to: i, mode: 'bota', side: dxh > 0.1 ? 'I' : 'D' }); return true; }
       if (pn.k === 'screen' && pn.q === undefined) { pn.q = i; render(); return true; }
       return false;
     }
@@ -3835,8 +3843,8 @@
         } else if (pn && pn.k === 'hand') {
           var lh = document.createElement('div'); lh.className = 'acn'; lh.style.cssText = 'grid-column:1 / -1';
           if (pn.to === undefined) {
-            lh.textContent = '¿A quién le da el balón mano a mano el jugador ' + (pn.p + 1) + '?'; elT.appendChild(lh);
-            AN.forEach(function (n, j) { if (j === pn.p) return; mk(elT, 'Jugador ' + n, function () { pn.to = j; render(); }); });
+            lh.textContent = '¿A quién le da el balón mano a mano el jugador ' + (pn.p + 1) + '? Tócalo en la pista.'; elT.appendChild(lh);
+            AN.forEach(function (n, j) { if (j === pn.p) return; mk(elT, 'Jugador ' + n, function () { var dxh = T3S.att[j][0] - T3S.att[pn.p][0]; add({ k: 'hand', p: pn.p, to: j, mode: 'bota', side: dxh > 0.1 ? 'I' : 'D' }); }); });
           } else {
             if (pn.mode === undefined) {
               lh.textContent = '¿Cómo se hace el mano a mano entre el ' + (pn.p + 1) + ' y el ' + (pn.to + 1) + '?'; elT.appendChild(lh);
@@ -4775,7 +4783,7 @@
     document.querySelector('.acad-sheet .seg[aria-label="Ejercicio"]').hidden = grp === 'tac1' || grp === 'tac3' || grp === 'tac5';
     document.querySelector('.acad-top h2').textContent = grp === 'ex' ? 'Ejercicios de entrenamiento' : grp === 'tec' ? 'Técnica' : grp === 'tac1' ? 'Táctica · 1x1' : grp === 'tac2' ? 'Táctica · 2x2' : grp === 'tac3' ? 'Táctica · 3x3' : grp === 'tac5' ? 'Táctica · 5x5' : grp === 'tac' ? 'Táctica' : 'Academia · Ejercicios';
   }
-  window.addEventListener('bbopenacad', function (e) { var nn = e.detail.n || 3; if (e.detail.tab === 9 && T3S.n !== nn) { T3S.n = nn; T3S.att = null; T3S.def = null; T3S.init = null; T3S.chain = []; T3S.help = t3F(false); T3S.dman = t3F(false); } grp = e.detail.group; openTab = e.detail.tab; applyGrp(); if (isOpen) tab(openTab); else openA(); });
+  window.addEventListener('bbopenacad', function (e) { var nn = e.detail.n || 3; if (e.detail.tab === 9 && T3S.n !== nn) { T3S.n = nn; T3S.noDef = (nn === 5); T3S.att = null; T3S.def = null; T3S.init = null; T3S.chain = []; T3S.help = t3F(false); T3S.dman = t3F(false); } grp = e.detail.group; openTab = e.detail.tab; applyGrp(); if (isOpen) tab(openTab); else openA(); });
   function openA() {
     if (isOpen) { closeA(); return; }
     isOpen = true; wrap.hidden = false; document.querySelector('.acad-sheet').classList.remove('min'); document.getElementById('acMin').textContent = 'Ocultar'; body.innerHTML = '<p class="acn">Preparando la pista…</p>';
