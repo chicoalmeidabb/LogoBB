@@ -123,7 +123,7 @@
   .seg { display: inline-flex; gap: 6px; flex-wrap: wrap; }
   .labin { width: 100%; box-sizing: border-box; padding: 9px 11px; border-radius: 10px; border: 1px solid #b9d3e6; font-size: .85rem; font-family: inherit; background: #fff; color: #17324d; }
   .seg[hidden] { display: none; }
-  #acB0, #acT4, #acT5, #acT6, #acT7, #acT8, #acT9, #acT10, #acT11 { font-weight: 700; }
+  #acB0, #acT4, #acT5, #acT6, #acT7, #acT8, #acT9, #acT10, #acT11, #acT12 { font-weight: 700; }
   .seg button { padding: 8px 13px; font-size: .8rem; }
   .player input {
     font: 600 16px var(--font-ui); color: var(--fg); background: var(--panel);
@@ -283,7 +283,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v5.18',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v5.19',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -1888,7 +1888,7 @@
     }
     if (!go && V.sel2 >= 0 && V.att[V.sel2] && !scrAct.length) { var h1 = T.hl[1], q2 = V.att[V.sel2]; h1.position.x = q2[0] * KC; h1.position.z = q2[1] * KC; h1.scale.setScalar(1 + 0.08 * Math.sin(time * 6)); h1.visible = true; }   // el que va a recibir el bloqueo, en azul
     /* marcadores del plano y jugador elegido */
-    T.mk.forEach(function (m) { m.disc.visible = m.sp.visible = !go && !m.off; });
+    T.mk.forEach(function (m) { m.disc.visible = m.sp.visible = !go && !m.off && V.n !== 2; });
     var sl = V.sel; T.sel.visible = !go && !!sl;
     if (sl) { var sp3 = sl.t === 'a' ? V.att[sl.i] : V.def[sl.i]; T.sel.position.x = sp3[0] * KC; T.sel.position.z = sp3[1] * KC; T.sel.scale.setScalar(1 + 0.08 * Math.sin(time * 6)); }
   }
@@ -2812,7 +2812,7 @@
   function showMenu() {
     menuT.textContent = '¿Qué quieres hacer?'; menuB.innerHTML = '';
     menuBtn('Tiro', showShot);
-    menuBtn('Técnica', function () { menuEl.hidden = true; window.dispatchEvent(new CustomEvent('bbopenacad', { detail: { group: 'tec', tab: 0 } })); });
+    menuBtn('Técnica individual', function () { menuEl.hidden = true; window.dispatchEvent(new CustomEvent('bbopenacad', { detail: { group: 'tec', tab: 0 } })); });
     menuBtn('Táctica', showTactic);
     menuBtn('Ejercicios de entrenamiento', function () { menuEl.hidden = true; window.dispatchEvent(new CustomEvent('bbopenacad', { detail: { group: 'ex', tab: 10 } })); });
     menuBtn('Jugadas', null, true);
@@ -3159,6 +3159,7 @@
       <button id="acT7" type="button" aria-pressed="false">Bloqueo directo</button>
       <button id="acT8" type="button" aria-pressed="false">1x1</button>
       <button id="acT9" type="button" aria-pressed="false">Entradas</button>
+      <button id="acT12" type="button" aria-pressed="false">Mano a mano</button>
       <button id="acT10" type="button" aria-pressed="false">3x3</button>
       <button id="acT11" type="button" aria-pressed="false">Ejercicios</button>
     </div>
@@ -3173,7 +3174,7 @@
 <script>
 (function () {
   var wrap = document.getElementById('acad'), body = document.getElementById('acBody');
-  var tabBtns = [document.getElementById('acT1'), document.getElementById('acT2'), document.getElementById('acT3'), document.getElementById('acT4'), document.getElementById('acT5'), document.getElementById('acT6'), document.getElementById('acT7'), document.getElementById('acT8'), document.getElementById('acT9'), document.getElementById('acT10'), document.getElementById('acT11')];
+  var tabBtns = [document.getElementById('acT1'), document.getElementById('acT2'), document.getElementById('acT3'), document.getElementById('acT4'), document.getElementById('acT5'), document.getElementById('acT6'), document.getElementById('acT7'), document.getElementById('acT8'), document.getElementById('acT9'), document.getElementById('acT10'), document.getElementById('acT11'), document.getElementById('acT12')];
   var LAB = { B: 'Bote', G: 'Paso 0 · recoge', '1': 'Paso 1', '2': 'Paso 2', '3': 'Paso 3', S: 'Tiro', D: 'Bote otra vez', R: 'Recibe el pase' };
   var PLAYS = [
     { t: 'BBBG12S', a: 'legal', why: 'Recoge el balón (paso 0, no cuenta), da el paso 1 y el 2 y lanza. Dos pasos tras recoger: legal.' },
@@ -3490,6 +3491,48 @@
     A.stop(); A.speed(slow ? 0.45 : 1); A.playLab();
   }
 
+  function viewMano() {
+    T3S.m2 = T3S.m2 || { r: null, g: null }; if (T3S.n !== 2) { T3S.m2 = { r: null, g: null }; T3S.n = 2; T3S.noDef = true; T3S.att = null; T3S.def = null; T3S.init = null; T3S.chain = []; T3S.steps = []; T3S.pend = null; T3S.playing = false; T3S.queue = []; T3S.holder = 0; T3S.sel = { t: 'a', i: 0 }; T3S.help = t3F(false); T3S.dman = t3F(false); }
+    viewT3();
+    var bl = document.getElementById('t3Ball'); if (bl && bl.parentNode) bl.parentNode.style.display = 'none';
+    ['t3Chips', 't3Head', 't3Pos', 't3Mk'].forEach(function (id) { var e = document.getElementById(id); if (e) e.style.display = 'none'; });
+    Array.prototype.forEach.call(body.querySelectorAll('div.acn'), function (d) { if (d.textContent === 'Coloca a los jugadores') d.innerHTML = '<b>Arrastra a cada jugador con el dedo hasta donde quieras</b>'; });
+    ['t3DefSw', 't3Def', 't3Save', 't3Ex', 't3Saved'].forEach(function (id) { var e = document.getElementById(id); if (!e) return; var pr = id === 't3Ex' || id === 't3DefSw' || id === 't3Def' ? e.parentNode : e; pr.style.display = 'none'; });
+    body.insertAdjacentHTML('afterbegin', '<p class="acn"><b>Pase mano a mano.</b> Arrastra a los dos jugadores con el dedo hasta donde quieras. Primero elige qué hace cada uno, coloca a los jugadores y pulsa Empezar. El 1 tiene el balón y se lo da al 2. El que da el balón se para y lo sujeta con las dos manos a la altura de la cadera, muy cerca; el que recibe pone las manos <b>por debajo del balón</b> y sale botando <b>por la espalda</b> del que se lo ha dado.</p>');
+    body.insertAdjacentHTML('beforeend', '<hr style="width:100%;border:0;border-top:1px solid #9bb;margin:10px 0">' +
+      '<p class="acn"><b>Vídeos.</b> Se leen de la carpeta «Vídeo» del Drive del club.</p>' +
+      '<div id="mnList" class="acopts"></div><p class="acn" id="mnMsg"></p>' +
+      '<div id="mnPlayer"></div>' +
+      '<label class="acn"><b>O pega un enlace</b> (Drive o YouTube)</label>' +
+      '<div class="acopts"><input id="mnLink" type="url" placeholder="https://…" style="flex:1;min-width:180px;padding:8px;border-radius:8px;border:1px solid #9bb;font:inherit"><button type="button" id="mnGo">Ver</button></div>');
+    var elL = body.querySelector('#mnList'), elMsg = body.querySelector('#mnMsg'), elPl = body.querySelector('#mnPlayer');
+    function parse(u) {
+      u = (u || '').trim(); var m;
+      if (/drive\.google\.com/.test(u) && ((m = u.match(/\/file\/d\/([\w-]+)/)) || (m = u.match(/[?&]id=([\w-]+)/)))) return { src: 'https://drive.google.com/file/d/' + m[1] + '/preview', out: 'https://drive.google.com/file/d/' + m[1] + '/view', n: 'Abrir en Drive' };
+      if ((m = u.match(/youtu\.be\/([\w-]{6,})/)) || (m = u.match(/[?&]v=([\w-]{6,})/)) || (m = u.match(/youtube\.com\/(?:embed|shorts)\/([\w-]{6,})/))) return { src: 'https://www.youtube.com/embed/' + m[1] + '?rel=0', out: 'https://youtu.be/' + m[1], n: 'Abrir en YouTube' };
+      return null;
+    }
+    function show(v, title) {
+      elPl.innerHTML = '';
+      if (title) { var h = document.createElement('p'); h.className = 'acn'; h.innerHTML = '<b></b>'; h.firstChild.textContent = title; elPl.appendChild(h); }
+      var f = document.createElement('iframe'); f.src = v.src; f.allow = 'autoplay; fullscreen'; f.setAttribute('allowfullscreen', ''); f.style.cssText = 'width:100%;aspect-ratio:16/9;border:0;border-radius:10px;background:#000';
+      elPl.appendChild(f);
+      var a = document.createElement('a'); a.href = v.out; a.target = '_blank'; a.rel = 'noopener'; a.textContent = v.n; a.style.cssText = 'display:inline-block;margin:8px 0;font-weight:700'; elPl.appendChild(a);
+    }
+    body.querySelector('#mnGo').addEventListener('click', function () {
+      var v = parse(body.querySelector('#mnLink').value);
+      if (!v) { elMsg.style.color = '#c0392b'; elMsg.textContent = 'Ese enlace no es de Drive ni de YouTube.'; return; }
+      elMsg.textContent = ''; show(v, '');
+    });
+    elMsg.textContent = 'Buscando vídeos…';
+    try {
+      window.bbGet({ action: 'videos' }).then(function (r) {
+        if (!r || !r.videos || !r.videos.length) { elMsg.textContent = r && r.videos ? 'La carpeta «Vídeo» todavía no tiene vídeos.' : 'La lista de vídeos estará disponible cuando se actualice el script del club. Mientras tanto, pega un enlace aquí abajo.'; return; }
+        elMsg.textContent = 'Toca un vídeo para verlo.';
+        r.videos.forEach(function (x) { var b = document.createElement('button'); b.type = 'button'; b.textContent = x.name.replace(/\.[^.]+$/, ''); b.addEventListener('click', function () { show({ src: 'https://drive.google.com/file/d/' + x.id + '/preview', out: 'https://drive.google.com/file/d/' + x.id + '/view', n: 'Abrir en Drive' }, b.textContent); }); elL.appendChild(b); });
+      }).catch(function () { elMsg.textContent = 'No se ha podido leer la carpeta de vídeos todavía (sin conexión o el script aún no está actualizado). Puedes pegar un enlace aquí abajo.'; });
+    } catch (er) { elMsg.textContent = 'No se ha podido leer la carpeta de vídeos.'; }
+  }
   function viewEntr() {
     stopAnim();
     var side = 'R', bote = true, kind = 'basic';
@@ -3530,7 +3573,7 @@
   /* ---------- 3x3 ---------- */
   function t3F(v) { var a = [], n = (typeof T3S !== 'undefined' && T3S.n) || 3; for (var i = 0; i < n; i++) a.push(!!v); return a; }
   var T3S = { view: null, active: false, att: null, def: null, holder: 0, orbit: false, fresh: true, help: [false, false, false], dman: [false, false, false], n: 3, steps: [], sel: { t: 'a', i: 0 }, pend: null, par: false, init: null, marks: [], addPos: false, bal: null, queue: [] };
-  function t3Defaults() { T3S.fresh = true; var P = A.t3Pos(); var nm0 = T3S.n === 5 ? ['1', '2i', '2D', '3i', 'P4'] : ['1', '2D', '3i']; T3S.att = nm0.map(function (k) { return P[k].slice(); }); T3S.def = null; T3S.holder = 0; T3S.dman = t3F(false); T3S.help = t3F(false); t3AutoDef(); T3S.steps = []; T3S.sel = { t: 'a', i: 0 }; T3S.pend = null; T3S.par = false; }
+  function t3Defaults() { T3S.fresh = true; var P = A.t3Pos(); var nm0 = T3S.n === 5 ? ['1', '2i', '2D', '3i', 'P4'] : T3S.n === 2 ? ['1', '2D'] : ['1', '2D', '3i']; T3S.att = nm0.map(function (k) { return P[k].slice(); }); T3S.def = null; T3S.holder = 0; T3S.dman = t3F(false); T3S.help = t3F(false); t3AutoDef(); T3S.steps = []; T3S.sel = { t: 'a', i: 0 }; T3S.pend = null; T3S.par = false; }
   function t3AutoDef() { for (var i = 0; i < T3S.n; i++) if (!T3S.dman[i] || !T3S.def) { T3S.def = T3S.def || T3S.att.map(function () { return [0, 0]; }); T3S.def[i] = (T3S.help[i] && T3S.holder >= 0 && T3S.holder !== i) ? A.t3HelpPos(T3S.att[i], T3S.att[T3S.holder]) : A.t3DefAuto(T3S.att[i], T3S.holder === i); } }
   function t3Snap() { return JSON.stringify({ att: T3S.att, def: T3S.def, holder: T3S.holder, dman: T3S.dman, help: T3S.help, fresh: T3S.fresh }); }
   function t3Push() { A.t3Set({ att: T3S.att, def: T3S.def, holder: T3S.holder, help: T3S.help, noDef: !!T3S.noDef, sel: T3S.sel, sel2: (T3S.pend && T3S.pend.k === 'screen' && T3S.pend.q !== undefined) ? T3S.pend.q : -1, scr: T3S.lastScr }); }
@@ -3581,7 +3624,7 @@
       T3S.pend = null; T3S.par = false; T3S.tapSel = null;
       if (T3S.playing) { T3S.queue.push([st]); elM.style.color = '#1b6f8a'; elM.textContent = 'En cola: ' + t3Txt(st) + '. Se hará al terminar la acción actual.'; render(); return; }
       elM.textContent = ''; T3S.steps.push(st); render(); document.getElementById('t3Go').onclick();
-      if (st.k === 'hand') { elM.style.color = '#1b6f8a'; elM.textContent = 'Entrega hecha. Elige ahora qué hace el jugador ' + (st.p + 1) + ' (el que ha dado el balón) y qué hace el jugador ' + (st.to + 1) + ' (el que lo ha recibido).'; }
+      if (st.k === 'hand') { elM.style.color = '#1b6f8a'; elM.textContent = 'Entrega hecha. Primero elige qué hace el jugador ' + (st.to + 1) + ' (el que ha recibido el balón).'; }
     }
     function addMany(sts) {
       T3S.pend = null; T3S.par = false; T3S.bal = null; T3S.tapSel = null;
@@ -3827,10 +3870,44 @@
       elV.innerHTML = ''; elT.innerHTML = ''; elV.style.cssText = elT.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px';
       if (T3S.sel.t === 'a') {
         var i0 = T3S.sel.i;
-        [['Va a otra posición…', 'go'], ['Corta hacia canasta…', 'cut'], ['Pasa a un compañero…', 'pass'], ['Mano a mano…', 'hand'], ['Bloquea a un compañero…', 'screen'], ['Se abre fuera del triple…', 'pop']].forEach(function (v) { mk(elV, v[0], function () { if ((v[1] === 'pass' || v[1] === 'hand') && hf < 0) { elM.textContent = 'Nadie tiene el balón.'; return; } T3S.addPos = false; T3S.bal = null; var pp = (v[1] === 'pass' || v[1] === 'hand') ? hf : (T3S.tapSel === null || T3S.tapSel === undefined || T3S.tapSel >= T3S.n ? null : T3S.tapSel); if (v[1] === 'screen' && pp !== null && pp === hf) { elM.style.color = '#c0392b'; elM.textContent = 'El que bloquea no puede tener el balón.'; pp = null; } T3S.pend = { k: v[1], p: pp }; if (v[1] === 'pop' && pp !== null) { add({ k: 'go', p: pp, to: 'fuera del triple', pop: true }); return; } if (pp !== null) elM.textContent = ''; render(); }, !!pn && pn.k === v[1]); });
-        mk(elV, 'Bota', function () { if (hf < 0) { elM.textContent = 'Nadie tiene el balón.'; return; } add({ k: 'bota', p: hf }); });
-        mk(elV, 'Tira a canasta', function () { if (hf < 0) { elM.textContent = 'Nadie tiene el balón.'; return; } add({ k: 'shoot', p: hf }); });
-        mk(elV, 'Entra a canasta', function () { if (hf < 0) { elM.textContent = 'Nadie tiene el balón.'; return; } add({ k: 'drive', p: hf }); });
+        var allH = (T3S.chain || []).concat(T3S.steps), hIx = -1, lastH = null;
+        for (var qh = allH.length - 1; qh >= 0; qh--) if (allH[qh].k === 'hand') { hIx = qh; lastH = allH[qh]; break; }
+        function hh(txt) { var d = document.createElement('div'); d.className = 'acn'; d.style.cssText = 'grid-column:1 / -1;font-weight:800;margin-top:4px'; d.textContent = txt; elV.appendChild(d); }
+        if (T3S.n !== 2 && !T3S.playing && (!pn || pn.p === null) && lastH) {       // después del mano a mano: primero decide el que recibe y, cuando ha hecho su acción, decide el que dio el balón
+          var hg = lastH.p, hr = lastH.to, aft = allH.slice(hIx + 1), recvDid = aft.some(function (x) { return x.p === hr; }), givDid = aft.some(function (x) { return x.p === hg; });
+          if (!recvDid) {
+            hh('Ahora decide el ' + (hr + 1) + ' (ha recibido el balón)');
+            mk(elV, 'Bota y entra a canasta', function () { add({ k: 'drive', p: hr }); });
+            mk(elV, 'Bota y tira', function () { add({ k: 'shoot', p: hr }); });
+            mk(elV, 'Bota y pasa a un compañero', function () { if (T3S.n === 2) { add({ k: 'pass', p: hr, to: hg }); return; } T3S.pend = { k: 'pass', p: hr }; T3S.sel = { t: 'a', i: hr }; elM.style.color = '#1b6f8a'; elM.textContent = 'Toca en la pista al compañero que recibe el pase.'; render(); });
+          } else if (!givDid) {
+            hh('Ahora decide el ' + (hg + 1) + ' (ha dado el balón)');
+            mk(elV, 'El ' + (hg + 1) + ' se abre', function () { add({ k: 'go', p: hg, to: 'fuera del triple', pop: true }); });
+            mk(elV, 'El ' + (hg + 1) + ' va hacia canasta', function () { add({ k: 'cut', p: hg, to: 'PZ' }); });
+          }
+          if (T3S.n !== 2) hh('Otras acciones');
+        }
+        if (T3S.n === 2 && !T3S.playing) {       // técnica individual: primero se decide qué hace cada uno y luego se pulsa Empezar
+          var M2 = T3S.m2 = T3S.m2 || { r: null, g: null };
+          if (lastH) { var hn = document.createElement('div'); hn.className = 'acn'; hn.style.cssText = 'grid-column:1 / -1'; hn.textContent = 'Para repetirlo, pulsa Inicio y luego Empezar.'; elV.appendChild(hn); }
+          else {
+            hh('1) ¿Qué hace el 2 (el que recibe el balón)?');
+            [['entra', 'Bota y entra a canasta'], ['tira', 'Bota y tira'], ['pasa', 'Bota y pasa al 1']].forEach(function (o) { mk(elV, o[1], function () { M2.r = M2.r === o[0] ? null : o[0]; render(); }, M2.r === o[0]); });
+            hh('2) ¿Qué hace el 1 (el que da el balón)?');
+            [['abre', 'El 1 se abre'], ['canasta', 'El 1 va hacia canasta']].forEach(function (o) { mk(elV, o[1], function () { M2.g = M2.g === o[0] ? null : o[0]; render(); }, M2.g === o[0]); });
+            hh('3) Coloca a los dos jugadores y pulsa Empezar');
+            var eb = mk(elV, 'Empezar', function () {
+              var dxe = T3S.att[1][0] - T3S.att[0][0], sts = [{ k: 'hand', p: 0, to: 1, mode: 'bota', side: dxe > 0.1 ? 'I' : 'D' }];
+              if (M2.r === 'entra') sts.push({ k: 'drive', p: 1 }); else if (M2.r === 'tira') sts.push({ k: 'shoot', p: 1 }); else if (M2.r === 'pasa') sts.push({ k: 'pass', p: 1, to: 0 });
+              if (M2.g === 'abre') sts.push({ k: 'go', p: 0, to: 'fuera del triple', pop: true }); else if (M2.g === 'canasta') sts.push({ k: 'cut', p: 0, to: 'PZ' });
+              addMany(sts);
+            }, undefined, 'primary'); eb.style.cssText = 'grid-column:1 / -1;font-size:1.05em;padding:12px';
+          }
+        }
+        [['Va a otra posición…', 'go'], ['Corta hacia canasta…', 'cut'], ['Pasa a un compañero…', 'pass'], ['Mano a mano…', 'hand'], ['Bloquea a un compañero…', 'screen'], ['Se abre fuera del triple…', 'pop']].filter(function (v) { return T3S.n !== 2; }).forEach(function (v) { mk(elV, v[0], function () { if ((v[1] === 'pass' || v[1] === 'hand') && hf < 0) { elM.textContent = 'Nadie tiene el balón.'; return; } T3S.addPos = false; T3S.bal = null; var pp = (v[1] === 'pass' || v[1] === 'hand') ? hf : (T3S.tapSel === null || T3S.tapSel === undefined || T3S.tapSel >= T3S.n ? null : T3S.tapSel); if (v[1] === 'screen' && pp !== null && pp === hf) { elM.style.color = '#c0392b'; elM.textContent = 'El que bloquea no puede tener el balón.'; pp = null; } T3S.pend = { k: v[1], p: pp }; if (v[1] === 'pop' && pp !== null) { add({ k: 'go', p: pp, to: 'fuera del triple', pop: true }); return; } if (pp !== null) elM.textContent = ''; render(); }, !!pn && pn.k === v[1]); });
+        if (T3S.n !== 2) mk(elV, 'Bota', function () { if (hf < 0) { elM.textContent = 'Nadie tiene el balón.'; return; } add({ k: 'bota', p: hf }); });
+        if (T3S.n !== 2) mk(elV, 'Tira a canasta', function () { if (hf < 0) { elM.textContent = 'Nadie tiene el balón.'; return; } add({ k: 'shoot', p: hf }); });
+        if (T3S.n !== 2) mk(elV, 'Entra a canasta', function () { if (hf < 0) { elM.textContent = 'Nadie tiene el balón.'; return; } add({ k: 'drive', p: hf }); });
         if (pn && pn.p === null) {
           var lq = document.createElement('div'); lq.className = 'acn'; lq.style.cssText = 'grid-column:1 / -1'; lq.textContent = 'Toca en la pista al jugador que ' + (pn.k === 'cut' ? 'corta' : pn.k === 'go' ? 'va a otra posición' : pn.k === 'pop' ? 'se abre fuera del triple' : 'se desplaza a bloquear') + '.'; elT.appendChild(lq);
           AN.forEach(function (n, j) { if (pn.k === 'screen' && j === hf) return; mk(elT, 'Jugador ' + n, function () { if (pn.k === 'pop') { add({ k: 'go', p: j, to: 'fuera del triple', pop: true }); return; } pn.p = j; render(); }); });
@@ -3905,7 +3982,7 @@
       document.getElementById('t3Go').onclick();
     };
     document.getElementById('t3Orb').onclick = function () { T3S.orbit = !T3S.orbit; this.setAttribute('aria-pressed', T3S.orbit); A.t3Orbit(T3S.orbit); render(); };
-    T3S.render = render; T3S.place = place; T3S.ground = ground; T3S.pickPlayer = pickPlayer;
+    T3S.render = render; T3S.place = place; T3S.ground = ground; T3S.pickPlayer = pickPlayer; T3S.add = add;
     if (T3S.openName) { var on0 = T3S.openName; T3S.openName = null; var of0 = t3Store().filter(function (x) { return x.name === on0; })[0]; if (of0) setTimeout(function () { t3Load(of0); }, 500); }
     if (T3S.openIncoming) { var oi = T3S.openIncoming; T3S.openIncoming = null; setTimeout(function () { t3Load(oi); }, 500); }
     A.stop(); A.speed(slow ? 0.45 : 1); A.playT3({ n: T3S.n, orbit: T3S.orbit, att: T3S.att, def: T3S.def, holder: T3S.holder, help: T3S.help, quarter: false });
@@ -3922,7 +3999,7 @@
       if (!okq) { T3S.queue = []; var m2 = document.getElementById('t3Msg'); if (m2) { m2.style.color = '#c0392b'; m2.textContent = 'Una acción en cola ya no se podía hacer y se ha cancelado.'; } if (T3S.render) T3S.render(); return; }
       T3S.steps = nxq; if (T3S.render) T3S.render(); setTimeout(function () { var g = document.getElementById('t3Go'); if (T3S.active && g && g.onclick && T3S.steps.length) g.onclick(); }, 350); return;
     }
-    if (T3S.render) { T3S.render(); var mm = document.getElementById('t3Msg'); if (mm) { mm.style.color = '#1b6f8a'; mm.textContent = (lr && lr.k === 'hand') ? 'Entrega hecha. Elige ahora qué hace el jugador ' + (lr.p + 1) + ' (el que ha dado el balón) y qué hace el jugador ' + (lr.to + 1) + ' (el que lo ha recibido).' : 'Jugada terminada. Las posiciones y el balón se quedan como han acabado: elige la siguiente acción.'; } }
+    if (T3S.render) { T3S.render(); var mm = document.getElementById('t3Msg'); if (mm) { mm.style.color = '#1b6f8a'; mm.textContent = (lr && lr.k === 'hand') ? 'Entrega hecha. Primero elige qué hace el jugador ' + (lr.to + 1) + ' (el que ha recibido el balón).' : 'Jugada terminada. Las posiciones y el balón se quedan como han acabado: elige la siguiente acción.'; } }
   });
   window.addEventListener('bbt3drop', function (e) {
     if (!T3S.active || !T3S.render) return; var d = e.detail || {}, P = A.t3Pos(), mm = document.getElementById('t3Msg');
@@ -4771,17 +4848,17 @@
     if (n < 3) lastSub = n;
     tabBtns.forEach(function (b, i) { b.setAttribute('aria-pressed', i === n); });
     blk0.setAttribute('aria-pressed', n < 3); subSeg.hidden = n >= 3;
-    if (n === 0) viewRule(); else if (n === 1) viewPlays(true); else if (n === 2) viewQuiz(true); else if (n === 3) viewPass(); else if (n === 4) viewPiv(); else if (n === 5) viewTwo(); else if (n === 6) viewScr(); else if (n === 7) viewLab(); else if (n === 8) viewEntr(); else if (n === 10) viewEX(); else viewT3();
+    if (n === 0) viewRule(); else if (n === 1) viewPlays(true); else if (n === 2) viewQuiz(true); else if (n === 3) viewPass(); else if (n === 4) viewPiv(); else if (n === 5) viewTwo(); else if (n === 6) viewScr(); else if (n === 7) viewLab(); else if (n === 8) viewEntr(); else if (n === 10) viewEX(); else if (n === 11) viewMano(); else viewT3();
     body.parentNode.scrollTop = 0;
   }
   tabBtns.forEach(function (b, i) { b.addEventListener('click', function () { tab(i); }); });
   blk0.addEventListener('click', function () { tab(lastSub); });
   var isOpen = false, grp = 'all', openTab = 0;
   function applyGrp() {
-    var vis = grp === 'ex' ? ['acT11', 'acT8'] : grp === 'tec' ? ['acB0', 'acT4', 'acT5', 'acT9'] : grp === 'tac1' ? ['acT8'] : grp === 'tac2' ? ['acT6', 'acT7'] : (grp === 'tac3' || grp === 'tac5') ? ['acT10'] : grp === 'tac' ? ['acT6', 'acT7', 'acT8', 'acT10'] : ['acB0', 'acT4', 'acT5', 'acT6', 'acT7', 'acT8', 'acT9', 'acT10'];
-    ['acB0', 'acT4', 'acT5', 'acT6', 'acT7', 'acT8', 'acT9', 'acT10', 'acT11'].forEach(function (id) { document.getElementById(id).hidden = vis.indexOf(id) < 0; });
+    var vis = grp === 'ex' ? ['acT11', 'acT8'] : grp === 'tec' ? ['acB0', 'acT4', 'acT5', 'acT9', 'acT12'] : grp === 'tac1' ? ['acT8'] : grp === 'tac2' ? ['acT6', 'acT7'] : (grp === 'tac3' || grp === 'tac5') ? ['acT10'] : grp === 'tac' ? ['acT6', 'acT7', 'acT8', 'acT10'] : ['acB0', 'acT4', 'acT5', 'acT6', 'acT7', 'acT8', 'acT9', 'acT10'];
+    ['acB0', 'acT4', 'acT5', 'acT6', 'acT7', 'acT8', 'acT9', 'acT10', 'acT11', 'acT12'].forEach(function (id) { document.getElementById(id).hidden = vis.indexOf(id) < 0; });
     document.querySelector('.acad-sheet .seg[aria-label="Ejercicio"]').hidden = grp === 'tac1' || grp === 'tac3' || grp === 'tac5';
-    document.querySelector('.acad-top h2').textContent = grp === 'ex' ? 'Ejercicios de entrenamiento' : grp === 'tec' ? 'Técnica' : grp === 'tac1' ? 'Táctica · 1x1' : grp === 'tac2' ? 'Táctica · 2x2' : grp === 'tac3' ? 'Táctica · 3x3' : grp === 'tac5' ? 'Táctica · 5x5' : grp === 'tac' ? 'Táctica' : 'Academia · Ejercicios';
+    document.querySelector('.acad-top h2').textContent = grp === 'ex' ? 'Ejercicios de entrenamiento' : grp === 'tec' ? 'Técnica individual' : grp === 'tac1' ? 'Táctica · 1x1' : grp === 'tac2' ? 'Táctica · 2x2' : grp === 'tac3' ? 'Táctica · 3x3' : grp === 'tac5' ? 'Táctica · 5x5' : grp === 'tac' ? 'Táctica' : 'Academia · Ejercicios';
   }
   window.addEventListener('bbopenacad', function (e) { var nn = e.detail.n || 3; if (e.detail.tab === 9 && T3S.n !== nn) { T3S.n = nn; T3S.noDef = (nn === 5); T3S.att = null; T3S.def = null; T3S.init = null; T3S.chain = []; T3S.help = t3F(false); T3S.dman = t3F(false); } grp = e.detail.group; openTab = e.detail.tab; applyGrp(); if (isOpen) tab(openTab); else openA(); });
   function openA() {
