@@ -283,7 +283,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v5.25',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v5.26',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -341,7 +341,7 @@
 
   var emblem, pill, word, ballMesh, shadow;
   var legG = [], pMats, pIdx, mkArmG, mkHandG, handGeo, dP, dBody, dLegs, dArmL, dArmR, dHandL, dHandR, dShadow, player, body, legs, pony, jerseyMat, shortsMat, bandMat, trimMat, pShadow, armL, armR, handL, handR, jerseyCv, jerseyTex, bodyOff = 0, liveNow = false;
-  var standP = [], standM = null, standCheer = 0, standWas = false, aimDots, boardG, hoopG, poleG, standG, netLines, floorMat, lineMat, crestMat, lineMeshes = [];
+  var contFull = false, fullG = null, buildArenaFn = null, ARENA = { half: null, full: null }, roofG = null, standP = [], standM = null, standCheer = 0, standWas = false, aimDots, boardG, hoopG, poleG, standG, netLines, floorMat, lineMat, crestMat, lineMeshes = [];
   var NA = 16, NL = 6, netPos, netVerts = [];
   var circleOff = new THREE.Vector3(), sBall = 1;
 
@@ -1035,13 +1035,19 @@
   function twoInit() {
     if (TWO) return TWO;
     var G = getRigs(), a1 = { root: player, sh: pShadow, body: body, legs: legs, lg: legG, kn: [legG[0].userData.knee, legG[1].userData.knee], aL: armL, aR: armR, hL: handL, hR: handR };
+    a1.look = function (isRed, nm) {          // en táctica el jugador 1 lleva el dorsal «1» (y los demás, su número); al salir se devuelve su camiseta
+      if (!a1.jc) { var cv = document.createElement('canvas'); cv.width = cv.height = 512; a1.jc = { cv: cv, c: cv.getContext('2d'), tx: new THREE.CanvasTexture(cv) }; a1.jc.tx.anisotropy = maxAniso; }
+      if (a1.lk === nm && pMats.jm.map === a1.jc.tx) return; a1.lk = nm; var c = a1.jc.c;
+      c.clearRect(0, 0, 512, 512); c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round'; c.font = '800 250px Montserrat, Arial, sans-serif'; c.lineWidth = 15; c.strokeStyle = '#0b4f6c'; c.fillStyle = '#ffffff'; c.strokeText(nm, 256, 215); c.fillText(nm, 256, 215);
+      a1.jc.tx.needsUpdate = true; pMats.jm.map = a1.jc.tx; pMats.jm.needsUpdate = true;
+    };
     TWO = { a1: a1, d1: G[1], a2: cloneRig(false, '10', 0x2a1d16), d2: cloneRig(true, '7', 0x4a3220) };
     TWO.labs = [mkLabel('1', '#1b9ad6'), mkLabel('2', '#1b9ad6')]; TWO.a1.lab = TWO.labs[0]; TWO.a2.lab = TWO.labs[1]; TWO.dlabs = [mkLabel('A', '#d9534f'), mkLabel('B', '#d9534f')]; TWO.d1.lab = TWO.dlabs[0]; TWO.d2.lab = TWO.dlabs[1];
     ['a1', 'a2', 'd1', 'd2'].forEach(function (k) { var R = TWO[k]; R.h = [new THREE.Vector3(), new THREE.Vector3()]; R.hi = false; R.ph = 0; R.yaw = 0; R.px = 0; R.pz = 0; R.spd = 0; R.init = false; });
     return TWO;
   }
   function hideTwo() {
-    acad.twoShown = false;
+    acad.twoShown = false; if (TWO && TWO.a1 && TWO.a1.jc && pMats && pMats.jm.map === TWO.a1.jc.tx) { pMats.jm.map = jerseyTex; pMats.jm.needsUpdate = true; TWO.a1.lk = null; }
     if (TWO && TWO.rings) TWO.rings.forEach(function (m) { m.visible = false; });
     if (TWO) ['a2', 'd2', 'd1'].forEach(function (k) { var R = TWO[k]; R.root.visible = R.sh.visible = R.aL.visible = R.aR.visible = R.hL.visible = R.hR.visible = false; });
     if (TWO) { ['a1', 'a2', 'd1', 'd2'].forEach(function (k) { TWO[k].lab.visible = false; }); t3Hide(); }
@@ -1434,7 +1440,7 @@
       if (!V.rp) { V.rp = new THREE.Vector3(); V.rp.set(A1.h[1].x, A1.h[1].y + 0.3, A1.h[1].z); }
       var fd = 0.8, f4 = Math.min(1, (t - V.sc.rel) / fd);
       if (f4 < 1) { bp.copy(V.rp); bp.x += (0 - bp.x) * f4; bp.z += (0 - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + V.sc.arc * Math.sin(Math.PI * f4); if (f4 > 0.93) { netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
-      else { var f5 = (t - V.sc.rel - fd) / 0.4; if (f5 < 1) bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, 0); else vis = false; }
+      else { var f5 = (t - V.sc.rel - fd) / 0.4; if (f5 < 1) bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, bzw); else vis = false; }
     }
     else if (md === 'dribble') tw(A1, hand === 'L' ? -0.42 : 0.42, dbY, -0.55, bp);
     else if (go && seg.k === 'p0') { if (st.u < 0.5) tw(A1, hand === 'L' ? -0.42 : 0.42, dbY, -0.55, bp); else { mid(A1, tpV2); tw(A1, hand === 'L' ? -0.42 : 0.42, RB + 1.3, -0.55, bp); bp.lerp(tpV2, sstep(0.5, 0.8, st.u)); } }
@@ -1454,13 +1460,22 @@
     P1: [0, 5.3], P2: [2.2, 5.3], P3: [2.2, 2.4], P4: [2.2, -0.1], P5: [-2.2, 5.3], P6: [-2.2, 2.4], P7: [-2.2, -0.1], PZ: [0, 2.0],
     F1: [-1.6, -1.5], F2: [1.6, -1.5], L1: [-7.5, 2.4], L2: [7.5, 2.4] };
   var T3N = ['1', '2i', '2D', '3i', '3D', '4i', '4D', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'PZ', 'F1', 'F2', 'L1', 'L2'];
-  function t3Clamp(p) { return [Math.max(-8.6, Math.min(8.6, p[0])), Math.max(-3.4, Math.min(9.4, p[1]))]; }   // deja sitio fuera de la pista para las filas
-  function t3DefAuto(p, ball) { var u = labUnit(p, [0, 0]), d = ball ? 1.1 : 1.5; return t3Clamp([p[0] + u[0] * d, p[1] + u[1] * d]); }
+  function arenaSync(vis) {          // gradas, paredes y techo: uno para media cancha y otro (más largo) para la cancha completa
+    var want = t3Full() ? 'full' : 'half';
+    if (!ARENA[want] && buildArenaFn) { buildArenaFn(want === 'full'); ARENA[want] = { G: standG, P: standP, M: standM, R: roofG }; }
+    var a = ARENA[want]; if (a) { standG = a.G; standP = a.P; standM = a.M; roofG = a.R; }
+    ['half', 'full'].forEach(function (k) { if (ARENA[k]) ARENA[k].G.visible = k === want && vis; });
+  }
+  function t3Full() { return !!(acad.t3 && acad.t3.full) || (!acad.on && contFull); }                       // cancha completa (5x5): dos canastas
+  function mirP(p) { return [-p[0], 18.6 - p[1]]; }
+  function bkOf(p) { return t3Full() && p[1] > 9.3 ? [0, 18.6] : [0, 0]; }         // canasta que ataca quien está en p
+  function t3Clamp(p) { return [Math.max(-8.6, Math.min(8.6, p[0])), Math.max(-3.4, Math.min(t3Full() ? 22.0 : 9.4, p[1]))]; }   // deja sitio fuera de la pista para las filas
+  function t3DefAuto(p, ball) { var u = labUnit(p, bkOf(p)), d = ball ? 1.1 : 1.5; return t3Clamp([p[0] + u[0] * d, p[1] + u[1] * d]); }
   /* defensa en ayuda: triángulo balón - atacante - defensor; cuanto más cerca del balón, más pequeño */
   function t3HelpPos(m, b) {
     var dx = b[0] - m[0], dz = b[1] - m[1], d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d, nx = -uz, nz = ux;
     var mx = m[0] + dx * 0.45, mz = m[1] + dz * 0.45;
-    if (nx * (0 - mx) + nz * (0 - mz) < 0) { nx = -nx; nz = -nz; }
+    var bkh = bkOf([mx, mz]); if (nx * (bkh[0] - mx) + nz * (bkh[1] - mz) < 0) { nx = -nx; nz = -nz; }
     var off = Math.min(2.0, 0.1 + 0.3 * d);
     return t3Clamp([mx + nx * off, mz + nz * off]);
   }
@@ -1639,18 +1654,18 @@
         t0 = Math.max(base, busy[st.p]); var tp = t0;
         var vP = sv(st) || velSin(st.p, st.k === 'cut' ? 4.4 : 2.9, st.k === 'cut');
         st.path.forEach(function (q) { if (dist(cur[st.p], q) > 0.05) tp = mv(st.p, t3Clamp(q), vP, st.k, tp, !!sv(st)).t1; });
-        if (st.markQ != null && cur[st.markQ]) { var aq = cur[st.markQ], bk = [0, 0.3], dq = dist(aq, bk), ub = aq[1] > 2.6 && dq > 0.1 ? [(bk[0] - aq[0]) / dq, (bk[1] - aq[1]) / dq] : labUnit(aq, cur[st.p]), fq = t3Clamp([aq[0] + ub[0] * 0.95, aq[1] + ub[1] * 0.95]); if (dist(cur[st.p], fq) > 0.05) tp = mv(st.p, fq, vP, st.k, tp).t1; }
+        if (st.markQ != null && cur[st.markQ]) { var aq = cur[st.markQ], bk = bkOf(aq)[1] ? [0, 18.3] : [0, 0.3], dq = dist(aq, bk), ub = Math.abs(aq[1] - bk[1]) > 2.3 && dq > 0.1 ? [(bk[0] - aq[0]) / dq, (bk[1] - aq[1]) / dq] : labUnit(aq, cur[st.p]), fq = t3Clamp([aq[0] + ub[0] * 0.95, aq[1] + ub[1] * 0.95]); if (dist(cur[st.p], fq) > 0.05) tp = mv(st.p, fq, vP, st.k, tp).t1; }
         end = tp;
       } else if (st.k === 'go' || st.k === 'cut') {
         if (lastScr && lastScr.q === st.p) lastScr = null;
         t0 = Math.max(base, busy[st.p]);
-        var dst = st.pop ? t3Pop(cur[st.p]) : t3DstOf(st), PZp = T3P.PZ.slice();
+        var dst = st.pop ? t3Pop(cur[st.p]) : t3DstOf(st), PZp = bkOf(cur[st.p])[1] ? mirP(T3P.PZ) : T3P.PZ.slice();
         if (st.k === 'cut' && !st.direct && dist(cur[st.p], PZp) > 0.9 && dist(dst, PZp) > 0.9) {          // corte hacia canasta: siempre por la zona (línea que pasa por PZ)
           var vz = sv(st) || velSin(st.p, 4.4, true), z1 = mv(st.p, PZp, vz, 'cut', t0, !!sv(st)), z2 = mv(st.p, dst, vz, 'cut', z1.t1, !!sv(st)); end = z2.t1;
         } else { var s = mv(st.p, dst, sv(st) ? sv(st) : st.bounces ? Math.max(0.3, dist(cur[st.p], dst) / Math.max(0.55, st.bounces * 0.449 - hxDur)) : (st.k === 'cut' || st.fast) ? velSin(st.p, 4.4, true) : velSin(st.p, 2.7, false), st.k, t0, !!sv(st)); end = s.t1; }
       } else if (st.k === 'hand') {            // mano a mano: opción 'bota' (el del balón va botando) u opción 'viene' (el otro va a por el balón)
         if (!tiene(st.p) || (MB && has[st.to]) || st.to === st.p) return;
-        var hP = st.p, hQ = st.to, hbk = [0, 0.3], hw = 0.55, hta, hsg = st.side === 'I' ? -1 : 1;
+        var hP = st.p, hQ = st.to, hbk = bkOf(cur[hQ])[1] ? [0, 18.3] : [0, 0.3], hw = 0.55, hta, hsg = st.side === 'I' ? -1 : 1;
         t0 = Math.max(base, busy[hP], busy[hQ]);
         if (st.mode === 'viene') {      // el que recibe llega por detrás: el del balón queda entre la canasta y él
           var hgp = cur[hP], hag = t3Clamp([hgp[0] + hsg * hw, hgp[1]]);
@@ -1695,6 +1710,7 @@
         if (MB) has[st.p] = false;
         t0 = Math.max(base, busy[st.p]);
         var LS = t3Clamp([(cur[st.p][0] < 0 ? -1 : 1) * (Math.abs(cur[st.p][0]) < 0.3 ? 0.5 : Math.min(0.8, Math.abs(cur[st.p][0]) * 0.3)), 0.8]);
+        if (bkOf(cur[st.p])[1]) LS = t3Clamp([LS[0], 18.6 - LS[1]]);
         var sd = mv(st.p, LS, VR, 'go', t0), ta = sd.t1;      // entrada rápida
         segs[st.p].push({ k: 'shot', t0: ta, t1: ta + 1.0, a: LS.slice(), b: LS.slice() });
         ev.push({ k: 'shot', t0: ta, rel: ta + 0.5, from: st.p });
@@ -1720,7 +1736,7 @@
   }
   function t3Hand(p, fx, fz) {          // bota con la mano más alejada de la línea de triple (la de dentro)
     var dx = fx - p[0], dz = fz - p[1], d = Math.hypot(dx, dz); if (d < 0.05) return 'R';
-    var rx = -dz / d, rz = dx / d, bk = [0, 0.3], dr = Math.hypot(p[0] + rx * 0.5 - bk[0], p[1] + rz * 0.5 - bk[1]), dl = Math.hypot(p[0] - rx * 0.5 - bk[0], p[1] - rz * 0.5 - bk[1]);
+    var rx = -dz / d, rz = dx / d, bk = bkOf(p)[1] ? [0, 18.3] : [0, 0.3], dr = Math.hypot(p[0] + rx * 0.5 - bk[0], p[1] + rz * 0.5 - bk[1]), dl = Math.hypot(p[0] - rx * 0.5 - bk[0], p[1] - rz * 0.5 - bk[1]);
     return dr <= dl + 0.01 ? 'R' : 'L';
   }
   function t3HandAway(p, fx, fz, g) {   // bota con la mano contraria al compañero que le ha dado el balón
@@ -1757,8 +1773,8 @@
     var sh = document.querySelector('.acad-sheet'), side = window.matchMedia('(orientation: landscape) and (min-width: 700px)').matches;
     var aw = vw, ah = vh;
     if (sh && !sh.hidden && !sh.classList.contains('min')) { var sr = sh.getBoundingClientRect(), st = stage.getBoundingClientRect(); if (side) aw = Math.max(120, sr.left - st.left); else ah = Math.max(120, sr.top - st.top); }
-    var pts = [], xs = [-7.3, 7.3], zs = [-1.3, 9.6], ys = [0, 2.3];
-    xs.forEach(function (x) { zs.forEach(function (z) { ys.forEach(function (y) { pts.push(new THREE.Vector3(x * KC, y, z * KC)); }); }); }); pts.push(new THREE.Vector3(0, 5.6, -1.0 * KC));
+    var pts = [], xs = [-7.3, 7.3], zs = t3.full ? [-1.3, 19.9] : [-1.3, 9.6], ys = [0, 2.3];
+    xs.forEach(function (x) { zs.forEach(function (z) { ys.forEach(function (y) { pts.push(new THREE.Vector3(x * KC, y, z * KC)); }); }); }); pts.push(new THREE.Vector3(0, 5.6, -1.0 * KC)); if (t3.full) pts.push(new THREE.Vector3(0, 5.6, 19.6 * KC));
     var cam = new THREE.PerspectiveCamera(camera.fov, vw / vh, camera.near, camera.far), mx = acad.midX || 0, mz = acad.midZ, mg = 6;
     function box(pitch, zoom) {
       var aphi = Math.max(0.05, Math.min(1.35, 0.4 + pitch)), arr = 15.5 / zoom;
@@ -1776,7 +1792,7 @@
     oYaw = 0; oPitch = best.p; oZoom = best.z;
     t3.fitOff = [(best.b.x0 + best.b.x1) / 2 - aw / 2, (best.b.y0 + best.b.y1) / 2 - ah / 2];
   }
-  window.addEventListener('resize', function () { if (acad.on && acad.t3 && !acad.t3.orbit) setTimeout(t3Fit, 250); });
+  window.addEventListener('resize', function () { if (acad.on && acad.t3 && (!acad.t3.orbit || Math.abs(oYaw) < 0.02)) setTimeout(t3Fit, 250); });
   function t3Ground(e) {
     var rc = canvas.getBoundingClientRect(), rcy = new THREE.Raycaster(); camera.updateMatrixWorld();
     rcy.setFromCamera({ x: ((e.clientX - rc.left) / rc.width) * 2 - 1, y: -((e.clientY - rc.top) / rc.height) * 2 + 1 }, camera);
@@ -1805,7 +1821,7 @@
     if (V.ex) { exInit().forEach(function (R, ci) { if (ci >= nn) return; var s = scr(R.root.position.x, 1.3, R.root.position.z), d = Math.hypot(s[0] - e.clientX, s[1] - e.clientY); if (d < bd) { bd = d; best = { player: { t: 'a', i: ci } }; } }); }
     else T3K.forEach(function (k) { var ci = +k.charAt(1) - 1; if (ci >= nn || (V.noDef && k.charAt(0) === 'd')) return; var R = T[k], s = scr(R.root.position.x, 1.3, R.root.position.z), d = Math.hypot(s[0] - e.clientX, s[1] - e.clientY); if (d < bd) { bd = d; best = { player: { t: k.charAt(0), i: ci } }; } });
     if (best || V.ex) return best;
-    T.mk.forEach(function (m) { if (m.off) return; var s = scr(m.disc.position.x, 0.1, m.disc.position.z), d = Math.hypot(s[0] - e.clientX, s[1] - e.clientY); if (d < bd) { bd = d; best = { name: m.nm }; } });
+    T.mk.forEach(function (m) { if (m.off || (V.full && !/^M\d/.test(m.nm))) return; var s = scr(m.disc.position.x, 0.1, m.disc.position.z), d = Math.hypot(s[0] - e.clientX, s[1] - e.clientY); if (d < bd) { bd = d; best = { name: m.nm }; } });
     return best;
   }
   function updateT3(dt, time, ps) {
@@ -1819,14 +1835,14 @@
     acad.midX = (acad.midX || 0) * (1 - Math.min(1, dt * 4));
     var AT = [T.a1, T.a2, T.a3, T.a4, T.a5].slice(0, n), DF = [T.d1, T.d2, T.d3, T.d4, T.d5].slice(0, n);
     for (var xi = n; xi < 5; xi++) ['a', 'd'].forEach(function (c) { var RX = T[c + (xi + 1)]; if (RX) { RX.root.visible = RX.sh.visible = RX.aL.visible = RX.aR.visible = RX.hL.visible = RX.hR.visible = false; RX.lab.visible = false; } });
-    for (i = 0; i < n; i++) { AT[i].lab = T.labs[i]; DF[i].lab = T.dlabs[i]; AT[i].labK = DF[i].labK = 0.5; }
+    for (i = 0; i < n; i++) { AT[i].lab = T.labs[i]; DF[i].lab = T.dlabs[i]; AT[i].labK = DF[i].labK = 0.5; if (AT[i].look) AT[i].look(false, String(i + 1)); }
     var pa = []; for (i = 0; i < n; i++) pa[i] = go ? t3PosAt(V, i, t) : V.att[i];
     var boxing = false;
     if (go) {
       var sev = V.sc.ev.filter(function (e) { return e.k === 'shot'; })[0];
       if (sev && t >= sev.rel) {                       // tras el tiro: los defensores bloquean el paso a canasta y los atacantes van al rebote
         boxing = true; var ad = 0.35 * Math.min(1, Math.max(0, (t - sev.rel - 0.2) / 0.8));
-        for (i = 0; i < n; i++) if (i !== sev.from) { var ub = labUnit(pa[i], [0, 0]); pa[i] = [pa[i][0] + ub[0] * ad, pa[i][1] + ub[1] * ad]; }
+        for (i = 0; i < n; i++) if (i !== sev.from) { var ub = labUnit(pa[i], bkOf(pa[i])); pa[i] = [pa[i][0] + ub[0] * ad, pa[i][1] + ub[1] * ad]; }
       }
     }
     if (!go) V.dp = V.def.map(function (p) { return p.slice(); });
@@ -1835,7 +1851,7 @@
     if (go) {
       var nst = Math.max(1, Math.ceil(dt * acad.speed / 0.03)), h = dt * acad.speed / nst;
       for (var q = 0; q < nst; q++) for (j = 0; j < n; j++) {
-        var uH = labUnit(pa[j], [0, 0]), dd = boxing ? 0.9 : (j === hNow ? 1.1 : 1.5), tg = t3Clamp([pa[j][0] + uH[0] * dd, pa[j][1] + uH[1] * dd]); if (V.help && V.help[j] && hb >= 0 && hb !== j) tg = t3HelpPos(pa[j], pa[hb]);
+        var uH = labUnit(pa[j], bkOf(pa[j])), dd = boxing ? 0.9 : (j === hNow ? 1.1 : 1.5), tg = t3Clamp([pa[j][0] + uH[0] * dd, pa[j][1] + uH[1] * dd]); if (V.help && V.help[j] && hb >= 0 && hb !== j) tg = t3HelpPos(pa[j], pa[hb]);
         var slow = 1; V.sc.scr.forEach(function (r) { if (r.q === j && t >= r.t0 && t <= r.t1 && Math.hypot(dp[j][0] - r.S[0], dp[j][1] - r.S[1]) < 1.15) slow = 0.25; });
         var dx = tg[0] - dp[j][0], dz = tg[1] - dp[j][1], dl = Math.hypot(dx, dz), sp = Math.min(dl, 6.5 * slow * h * Math.min(1, dl / 0.4 + 0.3));
         if (dl > 1e-4) { dp[j][0] += dx / dl * sp; dp[j][1] += dz / dl * sp; }
@@ -1846,14 +1862,14 @@
         }
       }
     }
-    var fp = [0, 0];
+    var fp = bkOf(V.att[0]);
     if (hNow >= 0) fp = pa[hNow];
     else if (hNow === -2 && go) { var pf = V.sc.ev.filter(function (e) { return e.k === 'pass' && t >= e.t0 && t < e.t1; })[0]; if (pf) { var pfA = t3PosAt(V, pf.from, pf.t0), pfu = pf.hand ? 0 : Math.min(0.85, (t - pf.t0) / (pf.t1 - pf.t0)); fp = [pfA[0] + (pa[pf.to][0] - pfA[0]) * pfu, pfA[1] + (pa[pf.to][1] - pfA[1]) * pfu]; } }   // en el aire: todos miran al balón
     var dbY = RB + 1.7 * Math.abs(Math.cos(time * 7)), scrAct = [];
     for (i = 0; i < n; i++) {
-      var seg = go ? t3SegAt(V, i, t) : null, mvg = !!seg && (seg.k === 'go' || seg.k === 'cut' || seg.k === 'bota'), md = 'guard', o = { stance: 0.5 }, lx = i === hNow ? 0 : fp[0], lz = i === hNow ? 0 : fp[1];
-      if (seg && (seg.k === 'go' || seg.k === 'cut') && i !== hNow && seg.sq === undefined) { md = 'run'; lx = pa[i][0] + (seg.b[0] - seg.a[0]); lz = pa[i][1] + (seg.b[1] - seg.a[1]); if (Math.hypot(seg.b[0] - seg.a[0], seg.b[1] - seg.a[1]) < 0.3) { lx = 0; lz = 0; } }   // sin balón: corre de cara
-      else if (!seg && go && i !== hNow && (function () { var sg = V.sc.segs[i], ul = null; for (var q3 = 0; q3 < sg.length; q3++) if (sg[q3].t1 <= t) ul = sg[q3]; return ul && ul.k === 'shot'; })()) { lx = 0; lz = 0; }   // después de tirar no se gira
+      var seg = go ? t3SegAt(V, i, t) : null, mvg = !!seg && (seg.k === 'go' || seg.k === 'cut' || seg.k === 'bota'), md = 'guard', o = { stance: 0.5 }, lx = i === hNow ? bkOf(pa[i])[0] : fp[0], lz = i === hNow ? bkOf(pa[i])[1] : fp[1];
+      if (seg && (seg.k === 'go' || seg.k === 'cut') && i !== hNow && seg.sq === undefined) { md = 'run'; lx = pa[i][0] + (seg.b[0] - seg.a[0]); lz = pa[i][1] + (seg.b[1] - seg.a[1]); if (Math.hypot(seg.b[0] - seg.a[0], seg.b[1] - seg.a[1]) < 0.3) { lx = bkOf(pa[i])[0]; lz = bkOf(pa[i])[1]; } }   // sin balón: corre de cara
+      else if (!seg && go && i !== hNow && (function () { var sg = V.sc.segs[i], ul = null; for (var q3 = 0; q3 < sg.length; q3++) if (sg[q3].t1 <= t) ul = sg[q3]; return ul && ul.k === 'shot'; })()) { lx = bkOf(pa[i])[0]; lz = bkOf(pa[i])[1]; }   // después de tirar no se gira
       if (seg && (seg.k === 'face' || seg.k === 'hand')) { if (seg.fx !== undefined) { lx = seg.fx; lz = seg.fz; } else { lx = pa[seg.q][0]; lz = pa[seg.q][1]; } }
       if (!seg && V.keep && V.keep.p === i && Math.hypot(pa[i][0] - V.keep.at[0], pa[i][1] - V.keep.at[1]) < 0.05) { lx = V.keep.fx; lz = V.keep.fz; md = 'stand'; }      // el que entregó se queda quieto, de lado, hasta su siguiente acción
       if (seg && seg.fq !== undefined && i === hNow) { lx = pa[seg.fq][0]; lz = pa[seg.fq][1]; }
@@ -1871,7 +1887,7 @@
       if (sqa >= 0 && !(seg && isMv(seg)) && i !== hNow) { md = 'screen'; lx = dp[sqa][0]; lz = dp[sqa][1]; }
       var actQ = seg && seg.k === 'screen' ? seg.q : seg && seg.sq !== undefined ? seg.sq : (sqa >= 0 && !(seg && isMv(seg)) && i !== hNow ? sqa : -1); if (actQ >= 0) scrAct.push({ p: i, q: actQ });
       if (seg && (seg.k === 'screen' || seg.sq !== undefined)) { var qd = seg.k === 'screen' ? seg.q : seg.sq; lx = dp[qd][0]; lz = dp[qd][1]; }   // el que bloquea va de frente al defensor
-      if (seg && seg.k === 'shot') { var us = (t - seg.t0) / 1.0; md = us < 0.3 ? 'ball' : 'high'; o = { stance: 0.5, jump: 0.6 * Math.sin(Math.PI * Math.max(0, Math.min(1, (us - 0.3) / 0.6))) }; lx = 0; lz = 0; }   // tirando: de cara a canasta
+      if (seg && seg.k === 'shot') { var us = (t - seg.t0) / 1.0; md = us < 0.3 ? 'ball' : 'high'; o = { stance: 0.5, jump: 0.6 * Math.sin(Math.PI * Math.max(0, Math.min(1, (us - 0.3) / 0.6))) }; lx = bkOf(pa[i])[0]; lz = bkOf(pa[i])[1]; }   // tirando: de cara a canasta
       if (seg && seg.k === 'pass') { var ev0 = V.sc.ev.filter(function (e) { return e.k === 'pass' && e.from === i && Math.abs(e.t0 - (seg.t0 + 0.3)) < 1e-6; })[0]; if (ev0) { var rp = t3PosAt(V, ev0.to, t); lx = rp[0]; lz = rp[1]; } }
       twoActor(AT[i], dt, time, ps, pa[i][0], pa[i][1], lx, lz, md, o);
     }
@@ -1895,8 +1911,8 @@
       if (se) {
         if (!V.rp) { V.rp = new THREE.Vector3(); var Rs = AT[se.from]; V.rp.set((Rs.h[0].x + Rs.h[1].x) / 2, (Rs.h[0].y + Rs.h[1].y) / 2 + 0.3, (Rs.h[0].z + Rs.h[1].z) / 2); }
         var f4 = Math.min(1, (t - se.rel) / 0.85);
-        if (f4 < 1) { bp.copy(V.rp); bp.x += (0 - bp.x) * f4; bp.z += (0 - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + (0.6 + Math.hypot(V.rp.x, V.rp.z) * 0.12) * Math.sin(Math.PI * f4); if (f4 > 0.93) { netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
-        else { var f5 = (t - se.rel - 0.85) / 0.4; if (f5 < 1) bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, 0); else vis = false; }
+        var bzw = (V.full && V.rp.z > 9.3 * KC) ? 18.6 * KC : 0; if (f4 < 1) { bp.copy(V.rp); bp.x += (0 - bp.x) * f4; bp.z += (bzw - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + (0.6 + Math.hypot(V.rp.x, V.rp.z - bzw) * 0.12) * Math.sin(Math.PI * f4); if (f4 > 0.93) { netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
+        else { var f5 = (t - se.rel - 0.85) / 0.4; if (f5 < 1) bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, bzw); else vis = false; }
       } else vis = false;
     }
     ballMesh.visible = vis; shadow.visible = vis; ballMesh.scale.setScalar(RB); ballMesh.position.copy(bp);
@@ -1911,7 +1927,7 @@
     }
     if (!go && V.sel2 >= 0 && V.att[V.sel2] && !scrAct.length) { var h1 = T.hl[1], q2 = V.att[V.sel2]; h1.position.x = q2[0] * KC; h1.position.z = q2[1] * KC; h1.scale.setScalar(1 + 0.08 * Math.sin(time * 6)); h1.visible = true; }   // el que va a recibir el bloqueo, en azul
     /* marcadores del plano y jugador elegido */
-    T.mk.forEach(function (m) { m.disc.visible = m.sp.visible = !go && !m.off && V.n !== 2; });
+    T.mk.forEach(function (m) { m.disc.visible = m.sp.visible = !go && !m.off && V.n !== 2 && (!V.full || /^M\d/.test(m.nm)); });
     var sl = V.sel; T.sel.visible = !go && !!sl;
     if (sl) { var sp3 = sl.t === 'a' ? V.att[sl.i] : V.def[sl.i]; T.sel.position.x = sp3[0] * KC; T.sel.position.z = sp3[1] * KC; T.sel.scale.setScalar(1 + 0.08 * Math.sin(time * 6)); }
   }
@@ -1937,7 +1953,7 @@
     for (j = n; j < 14; j++) { var RX = RR[j]; RX.root.visible = RX.sh.visible = RX.aL.visible = RX.aR.visible = RX.hL.visible = RX.hR.visible = false; RX.lab.visible = false; }
     var pa = []; for (i = 0; i < n; i++) pa[i] = go ? t3PosAt(V, i, t) : V.att[i];
     var BA = V.balls ? exBallsAt(V, go ? t : -1) : null, hasB = BA ? BA.h : null;
-    var hNow = BA ? hasB.indexOf(true) : (go ? t3HolderAt(V, t) : V.holder), fp = [0, 0];
+    var hNow = BA ? hasB.indexOf(true) : (go ? t3HolderAt(V, t) : V.holder), fp = bkOf(V.att[0]);
     if (BA && hNow < 0 && BA.fly.length) hNow = -2;
     if (!V.dp || V.dp.length !== n) V.dp = pa.map(function (p) { return p.slice(); });
     var dp = V.dp;
@@ -1964,15 +1980,15 @@
       var seg = go ? t3SegAt(V, i, t) : null, mvg = !!seg && (seg.k === 'go' || seg.k === 'cut' || seg.k === 'bota'), md = 'guard', o = { stance: isD ? 0.9 : 0.5 }, px = isMk(i) ? dp[i][0] : pa[i][0], pz = isMk(i) ? dp[i][1] : pa[i][1], lx = fp[0], lz = fp[1];
       if (isMk(i)) { lx = pa[mark[i]][0]; lz = pa[mark[i]][1]; }
       // al cortar va de cara a canasta; al desplazarse sin balón, mira hacia donde va (no se queda de espaldas mirando al balón)
-      else if (seg && seg.k === 'shot') { lx = 0; lz = 0; }                       // tirando: siempre de cara a canasta
+      else if (seg && seg.k === 'shot') { lx = bkOf([px, pz])[0]; lz = bkOf([px, pz])[1]; }                       // tirando: siempre de cara a canasta
       else if (!seg && !conBalon(i) && (pz < -0.75 || Math.abs(px) > 6.9)) { lx = pz < -0.75 ? px : 0; lz = pz < -0.75 ? 5 : pz; }   // en la fila de fuera: mira al campo
-      else if (!seg && go && (function () { var sg = V.sc.segs[i], ul = null; for (var q3 = 0; q3 < sg.length; q3++) if (sg[q3].t1 <= t) ul = sg[q3]; return ul && ul.k === 'shot'; })()) { lx = 0; lz = 0; }   // después de tirar no se gira
+      else if (!seg && go && (function () { var sg = V.sc.segs[i], ul = null; for (var q3 = 0; q3 < sg.length; q3++) if (sg[q3].t1 <= t) ul = sg[q3]; return ul && ul.k === 'shot'; })()) { lx = bkOf([px, pz])[0]; lz = bkOf([px, pz])[1]; }   // después de tirar no se gira
       else if (seg && (seg.k === 'cut' || seg.k === 'go') && !conBalon(i)) {      // sin balón: de cara hacia donde corre
         lx = px + (seg.b[0] - seg.a[0]); lz = pz + (seg.b[1] - seg.a[1]);
-        if (Math.hypot(seg.b[0] - seg.a[0], seg.b[1] - seg.a[1]) < 0.3) { lx = 0; lz = 0; }
+        if (Math.hypot(seg.b[0] - seg.a[0], seg.b[1] - seg.a[1]) < 0.3) { lx = bkOf([px, pz])[0]; lz = bkOf([px, pz])[1]; }
       }
       if (!isD && seg && (seg.k === 'go' || seg.k === 'cut') && !conBalon(i)) md = 'run';   // corre con los brazos acompañando
-      if (conBalon(i)) { md = mvg ? 'dribble' : 'ball'; o = { stance: 0.5, hand: 'R', hy: Math.max(1.2, Math.min(2.0, dbY + 0.35)) }; lx = 0; lz = 0; }
+      if (conBalon(i)) { md = mvg ? 'dribble' : 'ball'; o = { stance: 0.5, hand: 'R', hy: Math.max(1.2, Math.min(2.0, dbY + 0.35)) }; lx = bkOf([px, pz])[0]; lz = bkOf([px, pz])[1]; }
       if (!seg && !isD && Math.abs(pa[i][0]) > 3) { var fb2 = -1, fbd = 1e9; for (var q4 = 0; q4 < n; q4++) { if (q4 === i || role[q4] === 'D' || Math.abs(pa[q4][0]) <= 3 || (pa[q4][0] > 0) === (pa[i][0] > 0)) continue; var dd4 = Math.abs(pa[q4][1] - pa[i][1]); if (dd4 < fbd) { fbd = dd4; fb2 = q4; } } if (fb2 >= 0) { lx = pa[fb2][0]; lz = pa[fb2][1]; } }   // en la fila: mira al compañero de enfrente, en la otra fila
       if (seg && seg.k === 'pass') { md = 'pass'; var ev0 = V.sc.ev.filter(function (e) { return e.k === 'pass' && e.from === i && Math.abs(e.t0 - (seg.t0 + 0.3)) < 1e-6; })[0]; if (ev0) { var rp = t3PosAt(V, ev0.to, t); lx = rp[0]; lz = rp[1]; }
         if (seg.sigue && t > seg.t0 + 0.22) { var nxg = V.sc.segs[i].filter(function (x) { return x.t0 >= seg.t1 - 0.01; })[0]; if (nxg) { md = 'run'; lx = px + (nxg.b[0] - nxg.a[0]); lz = pz + (nxg.b[1] - nxg.a[1]); } }   // suelta el balón y ya mira hacia donde va a correr
@@ -1994,7 +2010,7 @@
         if (e.k === 'pass') { var A0 = t3PosAt(V, e.from, e.t0), B0 = RR[e.to].root.position, uu = (t - e.t0) / (e.t1 - e.t0); vb.set(A0[0] * KC + (B0.x - A0[0] * KC) * uu, 2.0 + 0.4 * Math.sin(Math.PI * uu), A0[1] * KC + (B0.z - A0[1] * KC) * uu); ponBalon(vb); }
         else {
           var S0 = t3PosAt(V, e.from, e.rel), f4 = Math.min(1, (t - e.rel) / 0.85), sx = S0[0] * KC, sz = S0[1] * KC;
-          if (f4 < 1) { vb.set(sx + (0 - sx) * f4, 2.3 + (5.25 - 2.3) * f4 + (0.6 + Math.hypot(sx, sz) * 0.12) * Math.sin(Math.PI * f4), sz + (0 - sz) * f4); if (f4 > 0.93) { netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
+          if (f4 < 1) { var bzv = (V.full && sz > 9.3 * KC) ? 18.6 * KC : 0; vb.set(sx + (0 - sx) * f4, 2.3 + (5.25 - 2.3) * f4 + (0.6 + Math.hypot(sx, sz - bzv) * 0.12) * Math.sin(Math.PI * f4), sz + (bzv - sz) * f4); if (f4 > 0.93) { netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
           else { var f5 = (t - e.rel - 0.85) / 0.4; vb.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, 0); }
           ponBalon(vb);
         }
@@ -2020,8 +2036,8 @@
       if (se) {
         if (!V.rp) { V.rp = new THREE.Vector3(); var Rs = RR[se.from]; V.rp.set((Rs.h[0].x + Rs.h[1].x) / 2, (Rs.h[0].y + Rs.h[1].y) / 2 + 0.3, (Rs.h[0].z + Rs.h[1].z) / 2); }
         var f4 = Math.min(1, (t - se.rel) / 0.85);
-        if (f4 < 1) { bp.copy(V.rp); bp.x += (0 - bp.x) * f4; bp.z += (0 - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + (0.6 + Math.hypot(V.rp.x, V.rp.z) * 0.12) * Math.sin(Math.PI * f4); if (f4 > 0.93) { netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
-        else { var f5 = (t - se.rel - 0.85) / 0.4; if (f5 < 1) bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, 0); else vis = false; }
+        var bzw = (V.full && V.rp.z > 9.3 * KC) ? 18.6 * KC : 0; if (f4 < 1) { bp.copy(V.rp); bp.x += (0 - bp.x) * f4; bp.z += (bzw - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + (0.6 + Math.hypot(V.rp.x, V.rp.z - bzw) * 0.12) * Math.sin(Math.PI * f4); if (f4 > 0.93) { netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
+        else { var f5 = (t - se.rel - 0.85) / 0.4; if (f5 < 1) bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, bzw); else vis = false; }
       } else vis = false;
     }
     ballMesh.visible = vis; shadow.visible = vis; ballMesh.scale.setScalar(RB); ballMesh.position.copy(bp);
@@ -2039,7 +2055,7 @@
       document.querySelector('.app').classList.add('acad-on'); hud.hidden = true; word.visible = false; hidePass(); dSt.init = false;
     },
     exit: function () {
-      exConesShow(false); exBallsHide(0); acad.exDrawOK = false; acad.exDraw = null; exLive(null); exPathsSet([], -1);
+      exConesShow(false); exBallsHide(0); acad.exDrawOK = false; acad.exDrawP = false; acad.exDraw = null; exLive(null); exPathsSet([], -1);
       acad.on = false; acad.run = false; acad.pass = null; acad.piv = null; acad.two = acad.scr = acad.lab = acad.t3 = null; if (acad.twoShown) hideTwo(); if (acad.pivShown) hidePiv(); if (acad.passShown) hidePass(); acad.pending = null; acad.feet.forEach(function (m) { m.visible = false; }); if (acad.ring) acad.ring.visible = false;
       legG[0].position.y = legG[1].position.y = 0.98; legG[0].rotation.x = legG[1].rotation.x = 0; legG[0].userData.knee.rotation.x = legG[1].userData.knee.rotation.x = 0; body.rotation.x = 0; acad.lean = 0;
       document.querySelector('.app').classList.remove('acad-on'); word.visible = true;
@@ -2068,6 +2084,8 @@
     t3Set: function (o) { var V = acad.t3; if (!V) return; if (V.mode === 'go') { V.mode = 'place'; V.sc = null; V.t = 0; V.rp = null; } if (o.att) V.att = o.att.map(function (p) { return p.slice(); }); if (o.def) V.def = o.def.map(function (p) { return p.slice(); }); if (o.holder !== undefined) V.holder = o.holder; if (o.help) V.help = o.help.slice(); if (o.noDef !== undefined) V.noDef = !!o.noDef; if (o.sel !== undefined) V.sel = o.sel; if (o.sel2 !== undefined) V.sel2 = o.sel2; if (o.scr !== undefined) V.lastScr = o.scr || null; },
     t3Go: function (steps, ls) { var V = acad.t3; if (!V) return; V.lastScr = ls || null; V.dp = V.def.map(function (p) { return p.slice(); }); t3Build(V, steps); V.mode = 'go'; V.t = 0; V.rp = null; var T = twoInit(); T3K.forEach(function (k) { if (T[k]) { T[k].init = false; T[k].hi = false; } }); },
     t3View: function () { t3Fit(); },
+    exDrawP: function (on) { acad.exDrawP = !!on; },
+    t3Full: function (on) { var V = acad.t3; if (!V) return; V.full = !!on; acad.midZ = (on ? 9.3 : 4.6) * KC; t3Fit(); if (!on) { V.att = V.att.map(t3Clamp); V.def = V.def.map(t3Clamp); } },
     t3Lines: function (o) {          // líneas de dirección de lo que hace cada jugador (corta, se abre, bota, entra)
       var V = { n: o.n || 3, att: o.att.map(function (p) { return p.slice(); }), holder: o.holder }, out = [];
       try { t3Build(V, o.steps); } catch (er) { return out; }
@@ -2085,7 +2103,7 @@
     },
     t3Replay: function (o) { var V = { n: o.n || 3, att: o.att.map(function (p) { return p.slice(); }), holder: o.holder, balls: o.balls ? o.balls.slice() : undefined }; t3Build(V, o.steps); return { att: V.sc.endAtt, holder: V.sc.endHolder, balls: V.sc.endBalls }; },
     t3Orbit: function (on) { if (acad.t3) acad.t3.orbit = !!on; }, t3Pos: function () { return T3P; }, t3Pop: function (p) { return t3Pop(p); }, t3Names: function () { return T3N; }, exSet: function (o) { var V = acad.t3; if (!V) return; V.ex = true; if (o.role) V.role = o.role.slice(); if (o.mark) V.mark = o.mark.slice(); if (o.ayuda) V.ayuda = o.ayuda.slice(); if (o.balls) V.balls = o.balls.slice(); if (o.rot !== undefined) V.rot = o.rot; }, exDraw: function (on) { acad.exDrawOK = !!on; if (!on) { acad.exDraw = null; exLive(null); } }, exPaths: function (l, sel, cols) { exPathsSet(l, sel, cols); }, exCones: function (l) { if (l) l.forEach(function (p, i) { if (exConePos[i]) exConePos[i] = p.slice(); }); return exConePos.map(function (p) { return p.slice(); }); }, t3Marks: function (l) { t3Marks(l || []); }, t3DefAuto: function (p, b) { return t3DefAuto(p, b); }, t3HelpPos: function (m, b) { return t3HelpPos(m, b); },
-    stop: function () { acad.exDrawOK = false; acad.exDraw = acad.exPathDrag = null; exLive(null); exPathsSet([], -1); acad.midX = 0; acad.run = false; acad.pass = null; acad.piv = null; acad.two = acad.scr = acad.lab = acad.t3 = null; acad.feet.forEach(function (m) { m.visible = false; }); },
+    stop: function () { acad.exDrawOK = false; acad.exDrawP = false; acad.exDraw = acad.exPathDrag = null; exLive(null); exPathsSet([], -1); acad.midX = 0; acad.run = false; acad.pass = null; acad.piv = null; acad.two = acad.scr = acad.lab = acad.t3 = null; acad.feet.forEach(function (m) { m.visible = false; }); },
     speed: function (s) { acad.speed = s; },
     passOrbit: function (on) { acad.passOrbit = !!on; if (acad.pass) { acad.pass.pull = 0; } },
     hand: function (h) { if (h) acad.hand = h; return acad.hand; }
@@ -2267,30 +2285,36 @@
     var arm = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.9), mat(NAVY, 0.45)); arm.position.set(0, H + 0.2, ZB - 0.45); poleG.add(arm);
     var base = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 1.1), mat(CYAN, 0.5)); base.position.set(0, 0.06, ZB - 0.9); poleG.add(base);
     court.add(poleG);
+    /* cancha completa: la otra mitad (líneas espejo, tablero, aro y poste) solo se ve al elegir «Cancha completa» */
+    fullG = new THREE.Group(); fullG.visible = false; court.add(fullG);
+    var lineG2 = lineG.clone(); lineG2.rotation.y = Math.PI; lineG2.position.set(0, 0, 2 * 9.3 * KC); fullG.add(lineG2);
+    var farB = new THREE.Group(); farB.rotation.y = Math.PI; farB.position.set(0, 0, 2 * 9.3 * KC);
+    farB.add(boardG.clone(true), hoopG.clone(true), poleG.clone(true)); fullG.add(farB);
 
     /* gradas con público alrededor de la pista (más bajas que el campo y fuera de las líneas) */
+    function buildArena(full) {
     standG = new THREE.Group(); standG.visible = false; court.add(standG);
     (function () {
       var NT = 5, TD = 1.7, TH = 0.7, SP = 0.95, seed2 = 11, i, k;
       function r2() { seed2 = (seed2 * 16807) % 2147483647; return seed2 / 2147483647; }
       var stepM = mat(0x16394d, 0.8), seatM = mat(0x1eabd1, 0.7);
       var persons = [];
-      function stand(side) {        // side: 'L' | 'R' (bandas) | 'F' (detrás del tablero)
+      function stand(side) {        // side: 'L' | 'R' (bandas) | 'F' (detrás del tablero) | 'G' (detrás de la otra canasta, solo cancha completa)
         for (k = 0; k < NT; k++) {
-          var h = TH * (k + 1), len, cx, cz, sx, sz;
-          if (side === 'F') { len = 29; sx = len; sz = TD; cx = 0; cz = -7.2 - TD * k - TD / 2; }
-          else { len = 23; sx = TD; sz = len; cx = (side === 'L' ? -1 : 1) * (12.3 + TD * k + TD / 2); cz = 4.2; }
+          var h = TH * (k + 1), len, cx, cz, sx, sz, end = side === 'F' || side === 'G';
+          if (end) { len = 29; sx = len; sz = TD; cx = 0; cz = side === 'F' ? -7.2 - TD * k - TD / 2 : 26.04 + 7.2 + TD * k + TD / 2; }
+          else { len = full ? 40.6 : 23; sx = TD; sz = len; cx = (side === 'L' ? -1 : 1) * (12.3 + TD * k + TD / 2); cz = full ? 13.02 : 4.2; }
           var b = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), stepM); b.position.set(cx, h / 2, cz); standG.add(b);
-          var st = new THREE.Mesh(new THREE.BoxGeometry(side === 'F' ? len : 0.5, 0.06, side === 'F' ? 0.5 : len), seatM); st.position.set(side === 'F' ? cx : cx + (side === 'L' ? 1 : -1) * 0.55, h + 0.02, side === 'F' ? cz + 0.55 : cz); standG.add(st);
+          var st = new THREE.Mesh(new THREE.BoxGeometry(end ? len : 0.5, 0.06, end ? 0.5 : len), seatM); st.position.set(end ? cx : cx + (side === 'L' ? 1 : -1) * 0.55, h + 0.02, end ? cz + (side === 'F' ? 0.55 : -0.55) : cz); standG.add(st);
           var n = Math.floor(len / SP);
           for (i = 0; i < n; i++) {
             if (r2() < 0.2) continue;
             var o = -len / 2 + SP * (i + 0.5);
-            persons.push(side === 'F' ? [cx + o, h, cz, Math.PI] : [cx, h, cz + o, side === 'L' ? -Math.PI / 2 : Math.PI / 2]);   // miran a la pista (el jugador mira hacia -z)
+            persons.push(end ? [cx + o, h, cz, side === 'F' ? Math.PI : 0] : [cx, h, cz + o, side === 'L' ? -Math.PI / 2 : Math.PI / 2]);   // miran a la pista (el jugador mira hacia -z)
           }
         }
       }
-      stand('L'); stand('R'); stand('F');
+      stand('L'); stand('R'); stand('F'); if (full) stand('G');
       var np = persons.length;
       standP = persons.map(function (p) { return { x: p[0], y: p[1], z: p[2], r: p[3], sc: 0.5 + r2() * 0.1, ph: r2() * 6.28 }; });
       /* los muñecos de la grada tienen la misma forma que los jugadores (camiseta sin mangas, pantalón, piernas, brazos, cabeza con pelo), con pocos polígonos */
@@ -2310,6 +2334,70 @@
       Object.keys(standM).forEach(function (kk) { if (standM[kk].instanceColor) standM[kk].instanceColor.needsUpdate = true; });
       standUpdate(0, 0, true);
     })();
+
+    /* pabellón: paredes con banda de patrocinio, ventanales, techo con cerchas y focos (solo se ven desde dentro) */
+    (function () {
+      var cv = document.createElement('canvas'); cv.width = 1024; cv.height = 512; var x = cv.getContext('2d'), i;
+      var gr = x.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, '#f1f6f9'); gr.addColorStop(0.55, '#d3e0e8'); gr.addColorStop(1, '#a9bccb');
+      x.fillStyle = gr; x.fillRect(0, 0, 1024, 512);                                // pared con degradado de luz
+      for (i = 0; i < 64; i++) { x.fillStyle = (i % 2 ? 'rgba(22,57,77,.10)' : 'rgba(255,255,255,.22)'); x.fillRect(i * 16, 0, 8, 262); x.fillStyle = 'rgba(22,57,77,.22)'; x.fillRect(i * 16, 0, 1, 262); }   // chapa grecada
+      x.fillStyle = 'rgba(22,57,77,.35)'; x.fillRect(0, 196, 1024, 3);              // junta horizontal
+      for (i = 0; i < 8; i++) {                                                     // ventanales con marco y cielo
+        var wx = 20 + i * 128, sg = x.createLinearGradient(0, 40, 0, 170); sg.addColorStop(0, '#8fd0ee'); sg.addColorStop(1, '#e4f5fc');
+        x.fillStyle = '#2c4252'; x.fillRect(wx - 5, 35, 110, 140); x.fillStyle = sg; x.fillRect(wx, 40, 100, 130);
+        x.fillStyle = 'rgba(255,255,255,.45)'; x.beginPath(); x.moveTo(wx + 10, 170); x.lineTo(wx + 45, 40); x.lineTo(wx + 62, 40); x.lineTo(wx + 27, 170); x.fill();
+        x.fillStyle = '#2c4252'; x.fillRect(wx + 48, 40, 4, 130); x.fillRect(wx, 100, 100, 4);
+      }
+      x.fillStyle = '#16394d'; x.fillRect(0, 300, 1024, 212);                       // zócalo acolchado oscuro
+      for (i = 0; i < 16; i++) { var pg = x.createLinearGradient(0, 312, 0, 500); pg.addColorStop(0, '#244d66'); pg.addColorStop(1, '#122c3b'); x.fillStyle = pg; x.fillRect(i * 64 + 3, 312, 58, 188); x.fillStyle = 'rgba(255,255,255,.10)'; x.fillRect(i * 64 + 3, 312, 58, 4); }
+      x.fillStyle = '#1eabd1'; x.fillRect(0, 262, 1024, 38); x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(0, 262, 1024, 3); x.fillStyle = 'rgba(0,0,0,.25)'; x.fillRect(0, 297, 1024, 3);   // banda de color con brillo
+      x.fillStyle = '#ffffff'; x.font = '800 24px Montserrat,Arial,sans-serif'; x.textBaseline = 'middle';
+      for (i = 0; i < 2; i++) x.fillText('BALONCESTO BADAJOZ  ★  BB  ★', 20 + i * 512, 282);
+      x.fillStyle = '#e8f3f8'; x.fillRect(0, 500, 1024, 12);                        // rodapié
+      var vg = x.createLinearGradient(0, 0, 1024, 0); vg.addColorStop(0, 'rgba(0,0,0,.18)'); vg.addColorStop(0.06, 'rgba(0,0,0,0)'); vg.addColorStop(0.94, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.18)'); x.fillStyle = vg; x.fillRect(0, 0, 1024, 512);   // sombra en las esquinas
+      var wTex = [], wImg = new Image(); wImg.onload = function () {                // escudo del club en las paredes
+        for (var j = 0; j < 4; j++) { x.save(); x.beginPath(); x.arc(110 + j * 256, 390, 44, 0, 7); x.closePath(); x.fillStyle = '#fff'; x.fill(); x.clip(); x.drawImage(wImg, 110 + j * 256 - 44, 390 - 44, 88, 88); x.restore(); }
+        wt.needsUpdate = true; wTex.forEach(function (q) { q.needsUpdate = true; });
+      }; wImg.src = ICON192;
+      var wt = new THREE.CanvasTexture(cv); wt.wrapS = THREE.RepeatWrapping; wt.anisotropy = 4;
+      function wall(len, h, px, pz, ry) {
+        var t = wt.clone(); t.needsUpdate = true; wTex.push(t); t.wrapS = THREE.RepeatWrapping; t.repeat.set(len / 22, 1);
+        var m = new THREE.Mesh(new THREE.PlaneGeometry(len, h), new THREE.MeshBasicMaterial({ map: t })); m.position.set(px, h / 2, pz); m.rotation.y = ry; standG.add(m);
+      }
+      var HW = 14, XW = 22.5, ZF = -17.5, ZB = full ? 43.5 : 19.5;
+      wall(ZB - ZF, HW, -XW, (ZB + ZF) / 2, Math.PI / 2);          // pared izquierda (mira hacia dentro)
+      wall(ZB - ZF, HW, XW, (ZB + ZF) / 2, -Math.PI / 2);          // pared derecha
+      wall(XW * 2, HW, 0, ZF, 0);                                    // pared del fondo (tras el tablero)
+      wall(XW * 2, HW, 0, ZB, Math.PI);                              // pared de medio campo
+      roofG = new THREE.Group(); standG.add(roofG);
+      var nCB, cc = document.createElement('canvas'); cc.width = 512; cc.height = 512; var cx2 = cc.getContext('2d');
+      cx2.fillStyle = '#2a4357'; cx2.fillRect(0, 0, 512, 512);
+      for (i = 0; i < 32; i++) { cx2.fillStyle = (i % 2 ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.18)'); cx2.fillRect(i * 16, 0, 8, 512); }   // chapa del techo
+      var ct = new THREE.CanvasTexture(cc); ct.wrapS = ct.wrapT = THREE.RepeatWrapping; ct.repeat.set(6, 5);
+      var ceil = new THREE.Mesh(new THREE.PlaneGeometry(XW * 2, ZB - ZF), new THREE.MeshBasicMaterial({ map: ct }));
+      ceil.rotation.x = Math.PI / 2; ceil.position.set(0, HW, (ZB + ZF) / 2); roofG.add(ceil);
+      var beam = new THREE.MeshBasicMaterial({ color: 0x0b1b27 }), beamL = new THREE.MeshBasicMaterial({ color: 0x5f7b8e });
+      for (i = -4; i <= 4; i++) {                                                   // cerchas: viga con borde claro
+        var bm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, ZB - ZF), beam); bm.position.set(i * 5, HW - 0.4, (ZB + ZF) / 2); roofG.add(bm);
+        var bl = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, ZB - ZF), beamL); bl.position.set(i * 5, HW - 0.78, (ZB + ZF) / 2); roofG.add(bl);
+      }
+      for (i = 0, nCB = Math.round((ZB - ZF) / 8); i < nCB; i++) { var cb = new THREE.Mesh(new THREE.BoxGeometry(XW * 2, 0.45, 0.45), beam); cb.position.set(0, HW - 0.28, ZF + 3 + i * 8); roofG.add(cb); }
+      var gcv = document.createElement('canvas'); gcv.width = gcv.height = 128; var gx = gcv.getContext('2d'), gg = gx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      gg.addColorStop(0, 'rgba(255,255,255,1)'); gg.addColorStop(0.2, 'rgba(255,244,200,.75)'); gg.addColorStop(0.55, 'rgba(255,230,160,.18)'); gg.addColorStop(1, 'rgba(255,220,140,0)'); gx.fillStyle = gg; gx.fillRect(0, 0, 128, 128);
+      var gtex = new THREE.CanvasTexture(gcv);
+      var lamp = new THREE.MeshBasicMaterial({ color: 0xffffff }), rim = new THREE.MeshBasicMaterial({ color: 0x20313d });
+      var halo = new THREE.SpriteMaterial({ map: gtex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.6 });
+      var pool = new THREE.MeshBasicMaterial({ map: gtex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.22 });
+      var cone = new THREE.MeshBasicMaterial({ color: 0xfff1c4, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+      for (var a = -3; a <= 3; a += 2) for (var b2 = 0; b2 < (full ? 7 : 4); b2++) {              // focos grandes colgados sobre la pista
+        var lx = a * 3.4, lz = ZF + 7 + b2 * 8;
+        var hs = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.5, 1.4), rim); hs.position.set(lx, HW - 1.1, lz); roofG.add(hs);       // carcasa
+        var lp = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.1, 1.1), lamp); lp.position.set(lx, HW - 1.38, lz); roofG.add(lp);     // panel de luz
+        var sp = new THREE.Sprite(halo); sp.scale.set(4.2, 4.2, 1); sp.position.set(lx, HW - 1.6, lz); roofG.add(sp);                    // halo brillante
+      }
+    })();
+    }
+    buildArenaFn = buildArena; buildArena(false); ARENA.half = { G: standG, P: standP, M: standM, R: roofG };
 
     /* guía de lanzamiento */
     var dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(26 * 3), 3));
@@ -2713,10 +2801,11 @@
       var cpk = acad.t3.ex ? exConePick(e) : -1; if (cpk >= 0) { acad.exCone = { i: cpk, x0: e.clientX, y0: e.clientY, moved: false }; return; }
       var lpk = !t3Pick(e) && exPathList.length ? exPathPick(e) : -1;
       if (lpk >= 0) { var g1 = t3Ground(e); acad.exPathDrag = { i: lpk, x0: e.clientX, y0: e.clientY, g0: g1, moved: false, d: [0, 0] }; return; }   // tocar o arrastrar una línea
+      if (acad.exDrawP && !acad.t3.ex) { var dpp = t3Pick(e); if (dpp && dpp.player && acad.t3.att[dpp.player.i]) { acad.exDraw = { pts: [acad.t3.att[dpp.player.i].slice()], pl: dpp.player.i }; return; } }   // cancha completa, modo flechas: se dibuja desde el jugador
       var dpk = acad.exDrawOK && !acad.t3.orbit ? t3Pick(e) : null;
       if (acad.exDrawOK && !acad.t3.orbit && (!dpk || dpk.player)) { var g0 = t3Ground(e); if (g0) { acad.exDraw = { pts: [g0], pl: dpk && dpk.player ? dpk.player.i : -1 }; return; } }   // empieza a dibujar un recorrido (también desde el propio jugador)
     }
-    if (acad.on && acad.t3 && acad.t3.mode === 'place') { var t3p = t3Pick(e); if (t3p) { if (t3p.player) { acad.t3drag = { i: t3p.player.i, x0: e.clientX, y0: e.clientY, moved: false }; t3p = { player: { t: 'a', i: t3p.player.i } }; } try { window.dispatchEvent(new CustomEvent('bbt3pick', { detail: t3p })); } catch (er) {} return; } else if (!acad.t3.orbit) { var t3g = t3Ground(e); if (t3g) { try { window.dispatchEvent(new CustomEvent('bbt3pick', { detail: { ground: t3g } })); } catch (er) {} } } }
+    if (acad.on && acad.t3 && acad.t3.mode === 'place') { var t3p = t3Pick(e); if (t3p) { if (t3p.player) { acad.t3drag = { i: t3p.player.i, x0: e.clientX, y0: e.clientY, moved: false }; t3p = { player: { t: 'a', i: t3p.player.i } }; } try { window.dispatchEvent(new CustomEvent('bbt3pick', { detail: t3p })); } catch (er) {} return; } else if (!acad.t3.orbit) { var t3g = t3Ground(e); if (t3g) { try { window.dispatchEvent(new CustomEvent('bbt3pick', { detail: { ground: t3g } })); } catch (er) {} } } else if (!acad.t3.ex) { acad.t3gTap = { x0: e.clientX, y0: e.clientY, g: t3Ground(e) }; } }
     if (acad.on && ((acad.two && acad.two.mode === 'place') || (acad.scr && acad.scr.mode === 'place') || (acad.lab && acad.lab.mode === 'place'))) { var gi = twoPick(e); if (gi >= 0) { acad.tdrag = gi; acad.tmoved = false; return; } }
     if (acad.on && acad.pass && acad.pass.manual && !acad.passOrbit) { acad.pdrag = { y0: e.clientY }; return; }   // pase: echar atrás y soltar
     if (mode === 'court') {
@@ -2773,7 +2862,7 @@
         var odx = e.clientX - last.x, ody = e.clientY - last.y;
         last.x = e.clientX; last.y = e.clientY;
         if (cont.on) cont.userCam = true;
-        if (acad.t3) { oYaw -= odx * 0.008; oPitch = Math.max(-0.03, Math.min(1.14, oPitch + ody * 0.004)); }   // el campo siempre se puede girar 360°
+        if (acad.t3) { oYaw -= odx * 0.008; oPitch = Math.max(-0.3, Math.min(1.14, oPitch + ody * 0.004)); }   // el campo siempre se puede girar 360°
         else { oYaw -= odx * 0.008; oPitch = Math.max(acad.on ? -0.03 : -0.5, Math.min(1.14, oPitch + ody * 0.004)); }
         return;
       }
@@ -2804,7 +2893,7 @@
       for (var di = 1; di < dr.pts.length; di++) lg += Math.hypot(dr.pts[di][0] - dr.pts[di - 1][0], dr.pts[di][1] - dr.pts[di - 1][1]);
       try {
         if (lg < 0.8) window.dispatchEvent(new CustomEvent('bbt3pick', { detail: dr.pl >= 0 ? { player: { t: 'a', i: dr.pl } } : { ground: dr.pts[0] } }));        // era un toque, no un dibujo
-        else window.dispatchEvent(new CustomEvent('bbexpath', { detail: { pts: exSimplifica(dr.pts) } }));
+        else window.dispatchEvent(new CustomEvent('bbexpath', { detail: { pts: exSimplifica(dr.pts), pl: dr.pl } }));
       } catch (er) {}
       return;
     }
@@ -2812,6 +2901,10 @@
       var ce2 = acad.exCone; acad.exCone = null;
       try { window.dispatchEvent(new CustomEvent('bbexcone', { detail: { i: ce2.i, moved: ce2.moved, xy: exConePos[ce2.i].slice() } })); } catch (er) {}
       return;
+    }
+    if (acad.t3gTap) {           // un toque en la pista (sin arrastrar): coloca; arrastrando se mueve el campo
+      var gt = acad.t3gTap; acad.t3gTap = null;
+      if (Math.hypot(e.clientX - gt.x0, e.clientY - gt.y0) < 8 && gt.g) { try { window.dispatchEvent(new CustomEvent('bbt3pick', { detail: { ground: gt.g } })); } catch (er) {} }
     }
     if (acad.t3drag) {
       var dd3 = acad.t3drag; acad.t3drag = null;
@@ -3048,13 +3141,14 @@
     menuB.appendChild(box);
     var mb = menuBtn('‹ Menú', showMenu); mb.style.background = 'transparent';
     var taps = 0, tapT = 0;           // menú escondido: toca 3 veces seguidas el título «Ayuda» para ver «Probar celebración»
-    menuT.onclick = function () {
+    menuT.style.cssText += ';touch-action:manipulation;-webkit-user-select:none;user-select:none;cursor:pointer;padding:6px 0';
+    menuT.onpointerup = function () {
       if (menuT.textContent !== 'Ayuda' || document.getElementById('hidCel')) return;
-      var now = Date.now(); taps = now - tapT < 1500 ? taps + 1 : 1; tapT = now;
+      var now = Date.now(); taps = now - tapT < 2500 ? taps + 1 : 1; tapT = now;
       if (taps >= 3) {
         var cb = document.createElement('button'); cb.type = 'button'; cb.id = 'hidCel'; cb.textContent = '🎉 Probar celebración de récord'; cb.className = mb.className; cb.style.cssText = mb.style.cssText; cb.style.background = '';
         cb.onclick = function () { menuEl.hidden = true; oYaw = 0; oPitch = 0.55; oZoom = 0.55; confettiBurst(); setTimeout(function () { showHelp(); }, 13000); };
-        menuB.insertBefore(cb, mb);
+        menuB.insertBefore(cb, menuB.firstChild);
       }
     };
     menuEl.hidden = false;
@@ -3075,6 +3169,7 @@
   }
   function showContest(champ) {
     menuT.textContent = champ ? '🏆 Campeonato de triples' : 'Concurso de triples'; menuB.innerHTML = '';
+    var bCf = menuBtn('Cancha completa', function () { contFull = !contFull; bCf.setAttribute('aria-pressed', contFull); }); bCf.setAttribute('aria-pressed', contFull);
     var p = document.createElement('p'); p.className = 'acn'; p.style.cssText = 'margin:0;text-align:center'; p.textContent = '5 carros de 5 balones. Cada canasta vale 1; el quinto balón (dorado) vale 2.'; menuB.appendChild(p);
     if (champ) {
       var ct = document.createElement('p'); ct.className = 'acn'; ct.style.cssText = 'margin:0;text-align:center';
@@ -3267,7 +3362,7 @@
     var ex = Math.max(0.001, seg01(u, 0.45, 1));
     boardG.scale.setScalar(ex); hoopG.scale.setScalar(ex); poleG.scale.set(ex, ex, ex);
     poleG.position.set(0, (1 - ex) * H * 0.5, 0);
-    floorMat.opacity = seg01(u, 0.3, 0.9); lineMat.opacity = floorMat.opacity * 0.85; if (crestMat) crestMat.opacity = floorMat.opacity * 0.95; if (standG) standG.visible = floorMat.opacity > 0.6;
+    floorMat.opacity = seg01(u, 0.3, 0.9); lineMat.opacity = floorMat.opacity * 0.85; if (crestMat) crestMat.opacity = floorMat.opacity * 0.95; arenaSync(floorMat.opacity > 0.6);
 
     /* jugador y balón */
     var live = mode === 'court' && u > 0.999;
@@ -3351,7 +3446,7 @@
     }
     contTick(dt);
     updateDefender(dt, time, showP ? seg01(u, 0.8, 1) : 0, live);
-    netSway *= Math.pow(0.35, dt); standUpdate(dt, time); confettiUpdate(dt);
+    netSway *= Math.pow(0.35, dt); standUpdate(dt, time); confettiUpdate(dt); if (roofG) roofG.visible = camera.position.y < 12; if (fullG) fullG.visible = t3Full();
     if (court.visible) updateNet(time);
 
     /* cámara */
@@ -3369,7 +3464,7 @@
       var aphi = Math.max(0.05, Math.min(1.35, 0.4 + cPitch)), arr = 15.5 / cZoom;
       var mx = acad.midX || 0;
       camCourt.set(mx + Math.sin(cYaw) * Math.cos(aphi) * arr, 1.7 + Math.sin(aphi) * arr, acad.midZ + Math.cos(cYaw) * Math.cos(aphi) * arr);
-      camera.position.lerpVectors(camLogo, camCourt, e); tgt.set(mx * e, 1.7 * e, acad.midZ * e);
+      camera.position.lerpVectors(camLogo, camCourt, e); tgt.set(mx * e, (1.7 + (acad.t3 && cPitch < 0 ? -cPitch * 24 : 0)) * e, acad.midZ * e);   // con la cámara baja, mira hacia arriba: techo y focos
       var vw = stage.clientWidth, vh = stage.clientHeight, sh = document.querySelector('.acad-sheet'), side = window.matchMedia('(orientation: landscape) and (min-width: 700px)').matches, mn = sh && sh.classList.contains('min');
       if (acad.t3 && acad.t3.fitOff) camera.setViewOffset(vw, vh, acad.t3.fitOff[0], acad.t3.fitOff[1], vw, vh); else camera.setViewOffset(vw, vh, side ? (mn ? 0 : Math.min(vw * 0.16, 170)) : 0, side ? 0 : vh * (mn ? 0.05 : 0.16), vw, vh);
     } else {
@@ -3863,7 +3958,7 @@
   var T3S = { view: null, active: false, att: null, def: null, holder: 0, orbit: false, fresh: true, help: [false, false, false], dman: [false, false, false], n: 3, steps: [], sel: { t: 'a', i: 0 }, pend: null, par: false, init: null, marks: [], addPos: false, bal: null, queue: [] };
   function t3Defaults() { T3S.fresh = true; var P = A.t3Pos(); var nm0 = T3S.n === 5 ? ['1', '2i', '2D', '3i', 'P4'] : T3S.n === 2 ? ['1', '2D'] : ['1', '2D', '3i']; T3S.att = nm0.map(function (k) { return P[k].slice(); }); T3S.def = null; T3S.holder = 0; T3S.dman = t3F(false); T3S.help = t3F(false); t3AutoDef(); T3S.steps = []; T3S.sel = { t: 'a', i: 0 }; T3S.pend = null; T3S.par = false; }
   function t3AutoDef() { for (var i = 0; i < T3S.n; i++) if (!T3S.dman[i] || !T3S.def) { T3S.def = T3S.def || T3S.att.map(function () { return [0, 0]; }); T3S.def[i] = (T3S.help[i] && T3S.holder >= 0 && T3S.holder !== i) ? A.t3HelpPos(T3S.att[i], T3S.att[T3S.holder]) : A.t3DefAuto(T3S.att[i], T3S.holder === i); } }
-  function t3Snap() { return JSON.stringify({ att: T3S.att, def: T3S.def, holder: T3S.holder, dman: T3S.dman, help: T3S.help, fresh: T3S.fresh }); }
+  function t3Snap() { return JSON.stringify({ att: T3S.att, def: T3S.def, holder: T3S.holder, dman: T3S.dman, help: T3S.help, fresh: T3S.fresh, full: !!T3S.full }); }
   function t3Push() { A.t3Set({ att: T3S.att, def: T3S.def, holder: T3S.holder, help: T3S.help, noDef: !!T3S.noDef, sel: T3S.sel, sel2: (T3S.pend && T3S.pend.k === 'screen' && T3S.pend.q !== undefined) ? T3S.pend.q : -1, scr: T3S.lastScr }); }
   function t3Txt(st) {
     if (st.k === 'hand') return 'El ' + (st.p + 1) + (st.mode === 'viene' ? ' espera quieto y el ' + (st.to + 1) + ' viene a por el balón' : ' bota hacia el ' + (st.to + 1)) + ' y se lo da mano a mano' + (st.mode === 'viene' ? ' (llega por la ' : ' (se queda a la ') + (st.side === 'I' ? 'izquierda' : 'derecha') + ')' + (st.par ? ' (a la vez)' : '');
@@ -3896,7 +3991,7 @@
     }
     if (!T3S.att) t3Defaults();
     var P = A.t3Pos(), NM = A.t3Names(), AN = ['1', '2', '3', '4', '5'].slice(0, T3S.n), DN = ['A', 'B', 'C', 'D', 'E'].slice(0, T3S.n);
-    body.innerHTML = '<div class="acopts" style="align-items:center"><b class="acn" style="margin:0">Defensa:</b><span id="t3DefSw" style="display:contents"></span></div><div class="acopts" style="align-items:center"><b class="acn" style="margin:0">Tiene el balón:</b><span id="t3Ball" style="display:contents"></span></div>' +
+    body.innerHTML = '<div class="acopts" style="justify-content:center"><button type="button" id="t3Undo" style="font-weight:700">↶ Deshacer</button></div>' + (T3S.n === 5 ? '<div class="acopts" style="justify-content:center"><button type="button" id="t3Full" aria-pressed="' + !!T3S.full + '">Cancha completa</button></div><div class="acopts" id="t3FlRow" style="justify-content:center"></div>' : '') + '<div class="acopts" style="align-items:center"><b class="acn" style="margin:0">Defensa:</b><span id="t3DefSw" style="display:contents"></span></div><div class="acopts" style="align-items:center"><b class="acn" style="margin:0">Tiene el balón:</b><span id="t3Ball" style="display:contents"></span></div>' +
       '<div class="acopts" style="align-items:center"><b class="acn" style="margin:0">Quién ayuda:</b><span id="t3Def" style="display:contents"></span></div>' +
       '<div class="acopts" id="t3Verb"></div><div class="acopts" id="t3Tgt"></div><div id="t3Msg" class="acn" style="color:#c0392b"></div>' +
       '<label class="acn"><b>Jugada</b></label><div id="t3Now" class="acn" style="text-align:left"></div><ol id="t3L" style="list-style:none;margin:0 0 8px;padding:0;text-align:left;width:100%"></ol>' +
@@ -3905,7 +4000,7 @@
       '<div class="acopts" id="t3Chips"></div>' +
       '<div class="acn" id="t3Head"></div><div class="acopts" id="t3Pos"></div><div class="acopts" id="t3Mk" style="align-items:center"></div>' +
       '<div id="t3Saved" class="acn" style="text-align:left"></div>' +
-      '<div class="acopts"><button type="button" id="t3Go" class="primary" hidden>Jugar</button><button type="button" id="t3Rep" hidden>Repetir la jugada entera</button><button type="button" id="t3Reset">Inicio</button><button type="button" id="t3Fresh">Empezar de cero</button><button type="button" id="t3Orb" aria-pressed="' + T3S.orbit + '">Mover campo</button><button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>';
+      '<div class="acopts"><button type="button" id="t3Go" class="primary" hidden>Jugar</button><button type="button" id="t3Rep" hidden>Repetir la jugada entera</button><button type="button" id="t3Reset">Inicio</button><button type="button" id="t3Fresh">Empezar de cero</button>' + '<button type="button" id="acSlow" aria-pressed="' + slow + '">Cámara lenta</button></div>';
     bindSlow();
     var elC = document.getElementById('t3Chips'), elP = document.getElementById('t3Pos'), elH = document.getElementById('t3Head'), elD = document.getElementById('t3Def'), elL = document.getElementById('t3L'), elV = document.getElementById('t3Verb'), elT = document.getElementById('t3Tgt'), elM = document.getElementById('t3Msg');
     function mk(parent, txt, fn, pressed, cls) { var b = document.createElement('button'); b.type = 'button'; b.textContent = txt; if (pressed !== undefined) b.setAttribute('aria-pressed', pressed); if (cls) b.className = cls; b.onclick = fn; parent.appendChild(b); return b; }
@@ -3967,13 +4062,19 @@
     function m2Hand() { var dxe = T3S.att[1][0] - T3S.att[0][0]; return { k: 'hand', p: 0, to: 1, mode: 'bota', side: dxe > 0.1 ? 'I' : 'D' }; }
     function m2Start() { try { return A.t3Replay({ n: 2, att: T3S.att, holder: 0, steps: [m2Hand()] }).att[0].slice(); } catch (er) { return T3S.att[0].slice(); } }
     function t3Lineas() { var l = []; (T3S.chain || []).concat(T3S.steps).forEach(function (x, i) { if (x.path) l.push(i); }); return l; }
-    T3S.recorrido = function (pts) {
+    T3S.recorrido = function (pts, pl) {
+      if (T3S.full && T3S.fl && pl !== undefined && pl >= 0 && pts && pts.length >= 2) {          // flecha de un jugador (cancha completa)
+        if (T3S.playing) { elM.style.color = '#c0392b'; elM.textContent = 'Espera a que termine la acción.'; return; }
+        T3S.arrows = (T3S.arrows || []).filter(function (a) { return a.p !== pl; }); T3S.arrows.push({ p: pl, path: pts.map(function (q) { return q.slice(); }) }); T3S.selArr = null;
+        elM.style.color = '#1b6f8a'; elM.textContent = 'Flecha del jugador ' + (pl + 1) + '. Pulsa «Jugar flechas» para que se muevan.'; render(); return;
+      }
       var pn = T3S.pend; if (T3S.playing || !pn || !(pn.k === 'go' || pn.k === 'cut') || pn.p === null || !pts || pts.length < 2) return;
       if (pn.forM2 && T3S.m2) { T3S.m2.path = pts.map(function (q) { return q.slice(); }); T3S.pend = null; elM.style.color = '#1b6f8a'; elM.textContent = 'Línea dibujada. Ahora coloca a los jugadores y pulsa Empezar.'; render(); return; }
       T3S.selPath = null; add({ k: pn.k, p: pn.p, to: 'la flecha dibujada', xy: pts[pts.length - 1].slice(), path: pts, direct: true });
     };
-    T3S.lineaTocada = function (i) { if (T3S.playing) return; T3S.selPath = T3S.selPath === i ? null : i; T3S.pend = null; elM.style.color = '#1b6f8a'; elM.textContent = T3S.selPath == null ? '' : 'Flecha seleccionada: bórrala con el botón, o arrástrala con el dedo para moverla.'; render(); };
+    T3S.lineaTocada = function (i) { if (T3S.playing) return; if (T3S.full && T3S.fl) { T3S.selArr = T3S.selArr === i ? null : i; elM.style.color = '#1b6f8a'; elM.textContent = T3S.selArr == null ? '' : 'Flecha seleccionada: bórrala con el botón, o arrástrala para moverla.'; render(); return; } T3S.selPath = T3S.selPath === i ? null : i; T3S.pend = null; elM.style.color = '#1b6f8a'; elM.textContent = T3S.selPath == null ? '' : 'Flecha seleccionada: bórrala con el botón, o arrástrala con el dedo para moverla.'; render(); };
     T3S.lineaMovida = function (i, d) {
+      if (T3S.full && T3S.fl) { var ar = (T3S.arrows || [])[i]; if (ar) { ar.path = ar.path.map(function (q) { return [Math.round((q[0] + d[0]) * 10) / 10, Math.round((q[1] + d[1]) * 10) / 10]; }); } render(); return; }
       if (T3S.playing) { elM.style.color = '#c0392b'; elM.textContent = 'Espera a que termine la acción.'; return; }
       var k = t3Lineas()[i]; if (k === undefined || k >= T3S.chain.length) return;
       var ch = JSON.parse(JSON.stringify(T3S.chain)), st = ch[k];
@@ -3990,7 +4091,7 @@
     function t3Load(pl) {
       if (T3S.playing) { elM.style.color = '#c0392b'; elM.textContent = 'Espera a que termine la acción.'; return; }
       var s0 = JSON.parse(pl.init);
-      T3S.att = s0.att; T3S.def = s0.def; T3S.holder = s0.holder; T3S.dman = s0.dman; T3S.help = s0.help || t3F(false); T3S.fresh = s0.fresh !== false;
+      T3S.att = s0.att; T3S.def = s0.def; T3S.holder = s0.holder; T3S.dman = s0.dman; T3S.help = s0.help || t3F(false); T3S.fresh = s0.fresh !== false; T3S.full = !!s0.full; A.t3Full(T3S.full);
       if (pl.marks && pl.marks.length) { T3S.marks = pl.marks.map(function (x) { return x.slice(); }); A.t3Marks(T3S.marks); }
       T3S.init = pl.init; T3S.chain = []; T3S.steps = JSON.parse(JSON.stringify(pl.chain)); T3S.name = pl.name; T3S.lastScr = null; T3S.pend = null; T3S.par = false;
       render(); document.getElementById('t3Go').onclick();
@@ -4134,11 +4235,17 @@
       document.getElementById('t3Help').textContent = T3S.steps.length ? 'Elige la acción y su destino: se realiza al momento.' : 'Arrastra a cada jugador con el dedo (atacante y defensor van juntos) y suéltalo: se coloca en la posición más cercana. También puedes elegir un jugador y tocar una posición. Después elige acciones: cada una se realiza al momento. El jugador 1 siempre empieza con el balón en la posición 1. Los defensores marcan al atacante de su número; en ayuda forman un triángulo con el balón.';
       elH.textContent = T3S.addPos ? 'Toca la pista donde quieras crear una posición nueva' : askPos ? '¿A qué posición ' + (pn.k === 'cut' ? 'corta' : 'va') + ' el jugador ' + (pn.p + 1) + '? Márcala en la pista, o dibuja la flecha con el dedo.' : 'Posiciones · toca para colocar al ' + selName();
       var lnI = t3Lineas(); if (T3S.selPath != null && T3S.selPath >= lnI.length) T3S.selPath = null;
-      A.exDraw(!T3S.playing && !!askPos && !T3S.orbit);
+      var arrM = !!(T3S.full && T3S.fl); T3S.orbit = arrM || !askPos; A.t3Orbit(T3S.orbit); A.exDraw(!T3S.playing && !!askPos && !arrM); A.exDrawP(arrM && !T3S.playing);
+      var bUn = document.getElementById('t3Undo'); if (bUn) bUn.disabled = !(((T3S.chain || []).length) || (T3S.full && T3S.fl && (T3S.arrows || []).length));
+      var flR = document.getElementById('t3FlRow'); if (flR) { flR.innerHTML = ''; if (T3S.full) {
+        mk(flR, 'Colocar', function () { T3S.fl = false; T3S.selArr = null; render(); }, !T3S.fl); mk(flR, 'Flechas', function () { T3S.fl = true; T3S.pend = null; render(); }, !!T3S.fl);
+        if (T3S.fl && (T3S.arrows || []).length) { mk(flR, 'Jugar flechas', t3JugarFlechas, undefined, 'primary'); mk(flR, T3S.selArr != null ? 'Borrar esta flecha' : 'Borrar flechas', function () { if (T3S.selArr != null) T3S.arrows.splice(T3S.selArr, 1); else T3S.arrows = []; T3S.selArr = null; render(); }); }
+      } }
       var drawnP = lnI.map(function (k) { return (T3S.chain || []).concat(T3S.steps)[k].path; }), autoP = [], colsP = drawnP.map(function () { return ''; });
+      if (T3S.full) { drawnP = (T3S.arrows || []).concat(T3S.running || []).map(function (a) { return a.path; }); colsP = drawnP.map(function () { return ''; }); }
       if (T3S.n === 2 && T3S.m2 && T3S.m2.g && !(T3S.chain && T3S.chain.length) && !T3S.steps.length) { if (T3S.m2.path) autoP = [T3S.m2.path]; else if (T3S.m2.g === 'abre') { var hs0 = m2Start(); autoP = [[hs0, A.t3Pop(hs0)]]; } }
-      A.exPaths(drawnP.concat(autoP), T3S.selPath == null ? -1 : T3S.selPath, colsP.concat(autoP.map(function () { return 'A'; })));
-      elP.innerHTML = ''; NM.forEach(function (nm) { mk(elP, nm, function () { place(nm); }); });
+      A.exPaths(drawnP.concat(autoP), T3S.full ? (T3S.selArr == null ? -1 : T3S.selArr) : (T3S.selPath == null ? -1 : T3S.selPath), colsP.concat(autoP.map(function () { return 'A'; })));
+      elP.innerHTML = ''; NM.forEach(function (nm) { if (T3S.full && !/^M\d/.test(nm)) return; mk(elP, nm, function () { place(nm); }); });
       var elK = document.getElementById('t3Mk'); elK.innerHTML = '';
       mk(elK, 'Añadir posición', function () { T3S.addPos = !T3S.addPos; T3S.pend = null; elM.textContent = ''; render(); }, T3S.addPos);
       if (T3S.marks.length) { mk(elK, 'Quitar mis posiciones', function () { T3S.marks = []; T3S.addPos = false; A.t3Marks(T3S.marks); render(); }); var ml = document.createElement('span'); ml.className = 'acn'; ml.style.margin = '0'; ml.textContent = 'Mis posiciones: ' + T3S.marks.map(function (x, q) { return 'M' + (q + 1); }).join(', '); elK.appendChild(ml); }
@@ -4298,18 +4405,38 @@
       T3S.lastScr = null; T3S.steps = ch; T3S.chain = []; T3S.pend = null; T3S.par = false; render();
       document.getElementById('t3Go').onclick();
     };
-    document.getElementById('t3Orb').onclick = function () { T3S.orbit = !T3S.orbit; this.setAttribute('aria-pressed', T3S.orbit); A.t3Orbit(T3S.orbit); render(); };
+    function t3JugarFlechas() {
+      var ar = T3S.arrows || []; if (!ar.length) return;
+      var sts = ar.map(function (a, k) { var st = { k: 'go', p: a.p, to: 'la flecha dibujada', xy: a.path[a.path.length - 1].slice(), path: a.path, direct: true }; if (k > 0) st.par = true; return st; });
+      T3S.running = ar.map(function (a) { return { p: a.p, path: a.path }; }); T3S.arrows = []; T3S.selArr = null; addMany(sts);
+    }
+    function t3Deshacer() {          // quita el último movimiento (o el último grupo hecho «a la vez») y deja a los jugadores como estaban antes
+      if (T3S.playing) { elM.style.color = '#c0392b'; elM.textContent = 'Espera a que termine la acción.'; return; }
+      if (T3S.full && T3S.fl && (T3S.arrows || []).length) { T3S.arrows.pop(); T3S.selArr = null; elM.style.color = '#1b6f8a'; elM.textContent = 'Flecha quitada.'; render(); return; }
+      var ch = T3S.chain || []; if (!ch.length) { elM.style.color = '#1b6f8a'; elM.textContent = 'No hay nada que deshacer.'; return; }
+      var k = ch.length - 1; while (k > 0 && ch[k].par) k--;
+      T3S.running = []; t3Rebuild(ch.slice(0, k), 'Último movimiento quitado.');
+    }
+    document.getElementById('t3Undo').onclick = t3Deshacer;
+    var bFull = document.getElementById('t3Full');
+    if (bFull) bFull.onclick = function () {
+      if (T3S.playing) { elM.style.color = '#c0392b'; elM.textContent = 'Espera a que termine la acción.'; return; }
+      T3S.full = !T3S.full; T3S.fl = false; T3S.arrows = []; T3S.selArr = null; A.t3Full(T3S.full);
+      if (!T3S.full) { var cl = function (q) { return [Math.max(-8.6, Math.min(8.6, q[0])), Math.max(-3.4, Math.min(9.4, q[1]))]; }; T3S.att = T3S.att.map(cl); T3S.def = T3S.def.map(cl); }
+      t3AutoDef(); t3Push(); render();
+    };
     T3S.render = render; T3S.place = place; T3S.ground = ground; T3S.pickPlayer = pickPlayer; T3S.add = add;
     if (T3S.openName) { var on0 = T3S.openName; T3S.openName = null; var of0 = t3Store().filter(function (x) { return x.name === on0; })[0]; if (of0) setTimeout(function () { t3Load(of0); }, 500); }
     if (T3S.openIncoming) { var oi = T3S.openIncoming; T3S.openIncoming = null; setTimeout(function () { t3Load(oi); }, 500); }
-    A.stop(); A.speed(slow ? 0.45 : 1); A.playT3({ n: T3S.n, orbit: T3S.orbit, att: T3S.att, def: T3S.def, holder: T3S.holder, help: T3S.help, quarter: false });
+    A.stop(); A.speed(slow ? 0.45 : 1); A.playT3({ n: T3S.n, orbit: true, att: T3S.att, def: T3S.def, holder: T3S.holder, help: T3S.help, quarter: false });
+    if (T3S.full && T3S.n === 5) A.t3Full(true); else T3S.full = false;
     A.t3Marks(T3S.marks);
     render();
   }
   window.addEventListener('bbt3end', function (e) {
     if (!T3S.active || !T3S.att) return;
     T3S.att = e.detail.att.map(function (p) { return p.slice(); }); T3S.def = e.detail.def.map(function (p) { return p.slice(); }); T3S.holder = e.detail.holder;
-    T3S.lastScr = e.detail.scr || null; T3S.playing = false; T3S.fresh = false; T3S.dman = t3F(true); T3S.steps = []; T3S.pend = null; T3S.par = false;
+    T3S.lastScr = e.detail.scr || null; T3S.playing = false; T3S.running = []; T3S.fresh = false; T3S.dman = t3F(true); T3S.steps = []; T3S.pend = null; T3S.par = false;
     var lr = T3S.lastRun && T3S.lastRun[T3S.lastRun.length - 1]; T3S.bal = (lr && (lr.k === 'shoot' || lr.k === 'drive') && e.detail.holder === -1 && !T3S.queue.length) ? { sel: [] } : null; T3S.lastRun = null;
     if (T3S.queue.length) {          // acciones en cola: se hacen una tras otra
       var nxq = T3S.queue.shift(), okq = !t3Check(nxq).some(function (x) { return x; });
@@ -4326,7 +4453,7 @@
     T3S.att[d.i] = (d.xy || P[d.name]).slice(); T3S.dman[d.i] = false; T3S.init = null; T3S.chain = []; T3S.lastScr = null; T3S.pend = null; t3AutoDef();
     if (mm) mm.textContent = ''; T3S.render();
   });
-  window.addEventListener('bbexpath', function (e) { if (!T3S.active || !T3S.recorrido) return; T3S.recorrido((e.detail || {}).pts || []); });
+  window.addEventListener('bbexpath', function (e) { if (!T3S.active || !T3S.recorrido) return; T3S.recorrido((e.detail || {}).pts || [], (e.detail || {}).pl); });
   window.addEventListener('bbexpathtap', function (e) { if (!T3S.active || !T3S.lineaTocada) return; T3S.lineaTocada((e.detail || {}).i); });
   window.addEventListener('bbexpathmove', function (e) { if (!T3S.active || !T3S.lineaMovida) return; var d = e.detail || {}; T3S.lineaMovida(d.i, d.d || [0, 0]); });
   window.addEventListener('bbt3pick', function (e) {
