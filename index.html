@@ -283,7 +283,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v5.26',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v5.27',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -1468,7 +1468,9 @@
   }
   function t3Full() { return !!(acad.t3 && acad.t3.full) || (!acad.on && contFull); }                       // cancha completa (5x5): dos canastas
   function mirP(p) { return [-p[0], 18.6 - p[1]]; }
-  function bkOf(p) { return t3Full() && p[1] > 9.3 ? [0, 18.6] : [0, 0]; }         // canasta que ataca quien está en p
+  var T3DIR = null, dirArrows = null;
+  function bkOf(p) { if (!t3Full()) return [0, 0]; if (T3DIR !== null) return T3DIR ? [0, 18.6] : [0, 0]; return p[1] > 9.3 ? [0, 18.6] : [0, 0]; }         // canasta que ataca el equipo (cancha completa: la que marca el sentido del ataque)
+  function bzFull(z) { return T3DIR !== null ? (T3DIR ? 18.6 * KC : 0) : (z > 9.3 * KC ? 18.6 * KC : 0); }         // canasta que ataca quien está en p
   function t3Clamp(p) { return [Math.max(-8.6, Math.min(8.6, p[0])), Math.max(-3.4, Math.min(t3Full() ? 22.0 : 9.4, p[1]))]; }   // deja sitio fuera de la pista para las filas
   function t3DefAuto(p, ball) { var u = labUnit(p, bkOf(p)), d = ball ? 1.1 : 1.5; return t3Clamp([p[0] + u[0] * d, p[1] + u[1] * d]); }
   /* defensa en ayuda: triángulo balón - atacante - defensor; cuanto más cerca del balón, más pequeño */
@@ -1911,7 +1913,7 @@
       if (se) {
         if (!V.rp) { V.rp = new THREE.Vector3(); var Rs = AT[se.from]; V.rp.set((Rs.h[0].x + Rs.h[1].x) / 2, (Rs.h[0].y + Rs.h[1].y) / 2 + 0.3, (Rs.h[0].z + Rs.h[1].z) / 2); }
         var f4 = Math.min(1, (t - se.rel) / 0.85);
-        var bzw = (V.full && V.rp.z > 9.3 * KC) ? 18.6 * KC : 0; if (f4 < 1) { bp.copy(V.rp); bp.x += (0 - bp.x) * f4; bp.z += (bzw - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + (0.6 + Math.hypot(V.rp.x, V.rp.z - bzw) * 0.12) * Math.sin(Math.PI * f4); if (f4 > 0.93) { netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
+        var bzw = V.full ? bzFull(V.rp.z) : 0; if (f4 < 1) { bp.copy(V.rp); bp.x += (0 - bp.x) * f4; bp.z += (bzw - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + (0.6 + Math.hypot(V.rp.x, V.rp.z - bzw) * 0.12) * Math.sin(Math.PI * f4); if (f4 > 0.93) { if (bzw) netSwayB = 1; else netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
         else { var f5 = (t - se.rel - 0.85) / 0.4; if (f5 < 1) bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, bzw); else vis = false; }
       } else vis = false;
     }
@@ -2010,7 +2012,7 @@
         if (e.k === 'pass') { var A0 = t3PosAt(V, e.from, e.t0), B0 = RR[e.to].root.position, uu = (t - e.t0) / (e.t1 - e.t0); vb.set(A0[0] * KC + (B0.x - A0[0] * KC) * uu, 2.0 + 0.4 * Math.sin(Math.PI * uu), A0[1] * KC + (B0.z - A0[1] * KC) * uu); ponBalon(vb); }
         else {
           var S0 = t3PosAt(V, e.from, e.rel), f4 = Math.min(1, (t - e.rel) / 0.85), sx = S0[0] * KC, sz = S0[1] * KC;
-          if (f4 < 1) { var bzv = (V.full && sz > 9.3 * KC) ? 18.6 * KC : 0; vb.set(sx + (0 - sx) * f4, 2.3 + (5.25 - 2.3) * f4 + (0.6 + Math.hypot(sx, sz - bzv) * 0.12) * Math.sin(Math.PI * f4), sz + (bzv - sz) * f4); if (f4 > 0.93) { netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
+          if (f4 < 1) { var bzv = V.full ? bzFull(sz) : 0; vb.set(sx + (0 - sx) * f4, 2.3 + (5.25 - 2.3) * f4 + (0.6 + Math.hypot(sx, sz - bzv) * 0.12) * Math.sin(Math.PI * f4), sz + (bzv - sz) * f4); if (f4 > 0.93) { if (bzv) netSwayB = 1; else netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
           else { var f5 = (t - e.rel - 0.85) / 0.4; vb.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, 0); }
           ponBalon(vb);
         }
@@ -2036,7 +2038,7 @@
       if (se) {
         if (!V.rp) { V.rp = new THREE.Vector3(); var Rs = RR[se.from]; V.rp.set((Rs.h[0].x + Rs.h[1].x) / 2, (Rs.h[0].y + Rs.h[1].y) / 2 + 0.3, (Rs.h[0].z + Rs.h[1].z) / 2); }
         var f4 = Math.min(1, (t - se.rel) / 0.85);
-        var bzw = (V.full && V.rp.z > 9.3 * KC) ? 18.6 * KC : 0; if (f4 < 1) { bp.copy(V.rp); bp.x += (0 - bp.x) * f4; bp.z += (bzw - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + (0.6 + Math.hypot(V.rp.x, V.rp.z - bzw) * 0.12) * Math.sin(Math.PI * f4); if (f4 > 0.93) { netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
+        var bzw = V.full ? bzFull(V.rp.z) : 0; if (f4 < 1) { bp.copy(V.rp); bp.x += (0 - bp.x) * f4; bp.z += (bzw - bp.z) * f4; bp.y += (5.25 - bp.y) * f4 + (0.6 + Math.hypot(V.rp.x, V.rp.z - bzw) * 0.12) * Math.sin(Math.PI * f4); if (f4 > 0.93) { if (bzw) netSwayB = 1; else netSway = 1; if (standCheer <= 0) standCheer = 3.2; } }
         else { var f5 = (t - se.rel - 0.85) / 0.4; if (f5 < 1) bp.set(0, 5.1 - 1.6 * f5 * f5 * 2.2, bzw); else vis = false; }
       } else vis = false;
     }
@@ -2102,8 +2104,8 @@
       return out;
     },
     t3Replay: function (o) { var V = { n: o.n || 3, att: o.att.map(function (p) { return p.slice(); }), holder: o.holder, balls: o.balls ? o.balls.slice() : undefined }; t3Build(V, o.steps); return { att: V.sc.endAtt, holder: V.sc.endHolder, balls: V.sc.endBalls }; },
-    t3Orbit: function (on) { if (acad.t3) acad.t3.orbit = !!on; }, t3Pos: function () { return T3P; }, t3Pop: function (p) { return t3Pop(p); }, t3Names: function () { return T3N; }, exSet: function (o) { var V = acad.t3; if (!V) return; V.ex = true; if (o.role) V.role = o.role.slice(); if (o.mark) V.mark = o.mark.slice(); if (o.ayuda) V.ayuda = o.ayuda.slice(); if (o.balls) V.balls = o.balls.slice(); if (o.rot !== undefined) V.rot = o.rot; }, exDraw: function (on) { acad.exDrawOK = !!on; if (!on) { acad.exDraw = null; exLive(null); } }, exPaths: function (l, sel, cols) { exPathsSet(l, sel, cols); }, exCones: function (l) { if (l) l.forEach(function (p, i) { if (exConePos[i]) exConePos[i] = p.slice(); }); return exConePos.map(function (p) { return p.slice(); }); }, t3Marks: function (l) { t3Marks(l || []); }, t3DefAuto: function (p, b) { return t3DefAuto(p, b); }, t3HelpPos: function (m, b) { return t3HelpPos(m, b); },
-    stop: function () { acad.exDrawOK = false; acad.exDrawP = false; acad.exDraw = acad.exPathDrag = null; exLive(null); exPathsSet([], -1); acad.midX = 0; acad.run = false; acad.pass = null; acad.piv = null; acad.two = acad.scr = acad.lab = acad.t3 = null; acad.feet.forEach(function (m) { m.visible = false; }); },
+    t3Dir: function (d) { T3DIR = d; if (dirArrows) { dirArrows.visible = d !== null; dirArrows.rotation.y = d ? Math.PI : 0; } }, t3Orbit: function (on) { if (acad.t3) acad.t3.orbit = !!on; }, t3Pos: function () { return T3P; }, t3Pop: function (p) { return t3Pop(p); }, t3Names: function () { return T3N; }, exSet: function (o) { var V = acad.t3; if (!V) return; V.ex = true; if (o.role) V.role = o.role.slice(); if (o.mark) V.mark = o.mark.slice(); if (o.ayuda) V.ayuda = o.ayuda.slice(); if (o.balls) V.balls = o.balls.slice(); if (o.rot !== undefined) V.rot = o.rot; }, exDraw: function (on) { acad.exDrawOK = !!on; if (!on) { acad.exDraw = null; exLive(null); } }, exPaths: function (l, sel, cols) { exPathsSet(l, sel, cols); }, exCones: function (l) { if (l) l.forEach(function (p, i) { if (exConePos[i]) exConePos[i] = p.slice(); }); return exConePos.map(function (p) { return p.slice(); }); }, t3Marks: function (l) { t3Marks(l || []); }, t3DefAuto: function (p, b) { return t3DefAuto(p, b); }, t3HelpPos: function (m, b) { return t3HelpPos(m, b); },
+    stop: function () { T3DIR = null; if (dirArrows) dirArrows.visible = false; acad.exDrawOK = false; acad.exDrawP = false; acad.exDraw = acad.exPathDrag = null; exLive(null); exPathsSet([], -1); acad.midX = 0; acad.run = false; acad.pass = null; acad.piv = null; acad.two = acad.scr = acad.lab = acad.t3 = null; acad.feet.forEach(function (m) { m.visible = false; }); },
     speed: function (s) { acad.speed = s; },
     passOrbit: function (on) { acad.passOrbit = !!on; if (acad.pass) { acad.pass.pull = 0; } },
     hand: function (h) { if (h) acad.hand = h; return acad.hand; }
@@ -2289,7 +2291,17 @@
     fullG = new THREE.Group(); fullG.visible = false; court.add(fullG);
     var lineG2 = lineG.clone(); lineG2.rotation.y = Math.PI; lineG2.position.set(0, 0, 2 * 9.3 * KC); fullG.add(lineG2);
     var farB = new THREE.Group(); farB.rotation.y = Math.PI; farB.position.set(0, 0, 2 * 9.3 * KC);
-    farB.add(boardG.clone(true), hoopG.clone(true), poleG.clone(true)); fullG.add(farB);
+    var hoopB = hoopG.clone(true);
+    hoopB.traverse(function (o) { if (o.isLineSegments) { netPosB = new Float32Array(netPos.length); o.geometry = new THREE.BufferGeometry(); o.geometry.setAttribute('position', new THREE.BufferAttribute(netPosB, 3)); o.frustumCulled = false; netLinesB = o; } });
+    farB.add(boardG.clone(true), hoopB, poleG.clone(true)); fullG.add(farB);
+    (function () {                    // flechas en el suelo: sentido del ataque
+      var sh = new THREE.Shape(); sh.moveTo(-0.45, -1.3); sh.lineTo(0.45, -1.3); sh.lineTo(0.45, 0.3); sh.lineTo(1.1, 0.3); sh.lineTo(0, 1.7); sh.lineTo(-1.1, 0.3); sh.lineTo(-0.45, 0.3); sh.lineTo(-0.45, -1.3);
+      var gA = new THREE.ShapeGeometry(sh); gA.rotateX(-Math.PI / 2); gA.scale(KC, 1, KC);
+      var mA = new THREE.MeshBasicMaterial({ color: 0x29b6f6, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide });
+      dirArrows = new THREE.Group(); dirArrows.visible = false;
+      [-5, 5].forEach(function (xx) { var m = new THREE.Mesh(gA, mA); m.position.set(xx * KC, 0.05, 0); m.renderOrder = 3; dirArrows.add(m); });
+      dirArrows.position.set(0, 0, 9.3 * KC); fullG.add(dirArrows);
+    })();
 
     /* gradas con público alrededor de la pista (más bajas que el campo y fuera de las líneas) */
     function buildArena(full) {
@@ -2622,7 +2634,7 @@
   var pointers = {}, lastOC = 0, lastPinch = 0, last = { x: 0, y: 0 };
   var score = 0, made = 0, tries = 0, defOn = false;
   var ball = { p: new THREE.Vector3(), v: new THREE.Vector3(), state: 'ready', scored: false, t: 0, rest: 0, spawn: 0, spawnX: 0, spawnZ: 6, hp: new THREE.Vector3(), pend: new THREE.Vector3(), wt: 0, crouch0: 0, rel: 0 };
-  var aim = null, netSway = 0, toastTimer = 0, aimFree = true, aimRot = 0, cont = { on: false };
+  var aim = null, netSway = 0, netSwayB = 0, netLinesB = null, netPosB = null, toastTimer = 0, aimFree = true, aimRot = 0, cont = { on: false };
 
   function setHold(x, z) {            // el jugador está en (x, z) y sostiene el balón 0.5 por delante
     var d = Math.hypot(x, z) || 1;
@@ -3292,26 +3304,32 @@
     }
   }
 
-  function updateNet(time) {
-    var dyL = NET_H / NL, p = ball.p, near = ball.state !== 'ready' && Math.hypot(p.x, p.z) < RIM + 0.15 && p.y < H + 0.4 && p.y > H - NET_H - 0.4;
+  function netShape(pos, lines, sway, hz, time) {          // red: se abre con el balón, lo sigue al pasar y después se balancea
+    var p = ballMesh.position, rx = p.x, ry = p.y, rz = p.z - hz, dyL = NET_H / NL;
+    var near = ballMesh.visible && Math.hypot(rx, rz) < RIM + 0.35 && ry < H + 0.4 && ry > H - NET_H - 0.5;
+    var stretch = 1 + 0.24 * sway * Math.sin(time * 11);
     for (var a = 0; a < NA; a++) {
       var ang = a / NA * Math.PI * 2, ca = Math.cos(ang), sa = Math.sin(ang);
       for (var l = 0; l <= NL; l++) {
-        var yR = l * dyL, r = rn(yR);
-        if (near && l > 0) { var gy = (H - yR - p.y) / 0.38; r += Math.exp(-gy * gy) * 0.14; }
-        var sx = netSway * Math.sin(time * 15 + l * 0.7) * 0.1 * (l / NL);
-        netVerts[a][l].set(r * ca + sx, -yR, r * sa);
+        var yR = l * dyL, r = rn(yR), ox = 0, oz = 0;
+        if (near && l > 0) { var gy = (H - yR - ry) / 0.42, g = Math.exp(-gy * gy); r += g * 0.26; ox = rx * g * 0.75; oz = rz * g * 0.75; }
+        var sx = sway * Math.sin(time * 15 + l * 0.7) * 0.22 * (l / NL), sz = sway * Math.cos(time * 12 + l * 0.9) * 0.17 * (l / NL);
+        netVerts[a][l].set(r * ca + sx + ox, -yR * stretch, r * sa + sz + oz);
       }
     }
     var n = 0;
     function seg(a, b) {
-      netPos[n++] = a.x; netPos[n++] = a.y; netPos[n++] = a.z; netPos[n++] = b.x; netPos[n++] = b.y; netPos[n++] = b.z;
+      pos[n++] = a.x; pos[n++] = a.y; pos[n++] = a.z; pos[n++] = b.x; pos[n++] = b.y; pos[n++] = b.z;
     }
     for (var a2 = 0; a2 < NA; a2++) {
       for (var l2 = 0; l2 < NL; l2++) { seg(netVerts[a2][l2], netVerts[(a2 + 1) % NA][l2 + 1]); seg(netVerts[a2][l2], netVerts[(a2 + NA - 1) % NA][l2 + 1]); }
       seg(netVerts[a2][NL], netVerts[(a2 + 1) % NA][NL]);
     }
-    netLines.geometry.attributes.position.needsUpdate = true;
+    lines.geometry.attributes.position.needsUpdate = true;
+  }
+  function updateNet(time) {
+    netShape(netPos, netLines, netSway, 0, time);
+    if (netLinesB && fullG && fullG.visible) netShape(netPosB, netLinesB, netSwayB, 18.6 * KC, time);
   }
 
   /* ---------- animación ---------- */
@@ -3446,7 +3464,7 @@
     }
     contTick(dt);
     updateDefender(dt, time, showP ? seg01(u, 0.8, 1) : 0, live);
-    netSway *= Math.pow(0.35, dt); standUpdate(dt, time); confettiUpdate(dt); if (roofG) roofG.visible = camera.position.y < 12; if (fullG) fullG.visible = t3Full();
+    netSway *= Math.pow(0.55, dt); netSwayB *= Math.pow(0.55, dt); standUpdate(dt, time); confettiUpdate(dt); if (roofG) roofG.visible = camera.position.y < 12; if (fullG) fullG.visible = t3Full();
     if (court.visible) updateNet(time);
 
     /* cámara */
@@ -3958,7 +3976,7 @@
   var T3S = { view: null, active: false, att: null, def: null, holder: 0, orbit: false, fresh: true, help: [false, false, false], dman: [false, false, false], n: 3, steps: [], sel: { t: 'a', i: 0 }, pend: null, par: false, init: null, marks: [], addPos: false, bal: null, queue: [] };
   function t3Defaults() { T3S.fresh = true; var P = A.t3Pos(); var nm0 = T3S.n === 5 ? ['1', '2i', '2D', '3i', 'P4'] : T3S.n === 2 ? ['1', '2D'] : ['1', '2D', '3i']; T3S.att = nm0.map(function (k) { return P[k].slice(); }); T3S.def = null; T3S.holder = 0; T3S.dman = t3F(false); T3S.help = t3F(false); t3AutoDef(); T3S.steps = []; T3S.sel = { t: 'a', i: 0 }; T3S.pend = null; T3S.par = false; }
   function t3AutoDef() { for (var i = 0; i < T3S.n; i++) if (!T3S.dman[i] || !T3S.def) { T3S.def = T3S.def || T3S.att.map(function () { return [0, 0]; }); T3S.def[i] = (T3S.help[i] && T3S.holder >= 0 && T3S.holder !== i) ? A.t3HelpPos(T3S.att[i], T3S.att[T3S.holder]) : A.t3DefAuto(T3S.att[i], T3S.holder === i); } }
-  function t3Snap() { return JSON.stringify({ att: T3S.att, def: T3S.def, holder: T3S.holder, dman: T3S.dman, help: T3S.help, fresh: T3S.fresh, full: !!T3S.full }); }
+  function t3Snap() { return JSON.stringify({ att: T3S.att, def: T3S.def, holder: T3S.holder, dman: T3S.dman, help: T3S.help, fresh: T3S.fresh, full: !!T3S.full, dir: T3S.full ? T3S.dir : undefined }); }
   function t3Push() { A.t3Set({ att: T3S.att, def: T3S.def, holder: T3S.holder, help: T3S.help, noDef: !!T3S.noDef, sel: T3S.sel, sel2: (T3S.pend && T3S.pend.k === 'screen' && T3S.pend.q !== undefined) ? T3S.pend.q : -1, scr: T3S.lastScr }); }
   function t3Txt(st) {
     if (st.k === 'hand') return 'El ' + (st.p + 1) + (st.mode === 'viene' ? ' espera quieto y el ' + (st.to + 1) + ' viene a por el balón' : ' bota hacia el ' + (st.to + 1)) + ' y se lo da mano a mano' + (st.mode === 'viene' ? ' (llega por la ' : ' (se queda a la ') + (st.side === 'I' ? 'izquierda' : 'derecha') + ')' + (st.par ? ' (a la vez)' : '');
@@ -3993,7 +4011,7 @@
     var P = A.t3Pos(), NM = A.t3Names(), AN = ['1', '2', '3', '4', '5'].slice(0, T3S.n), DN = ['A', 'B', 'C', 'D', 'E'].slice(0, T3S.n);
     body.innerHTML = '<div class="acopts" style="justify-content:center"><button type="button" id="t3Undo" style="font-weight:700">↶ Deshacer</button></div>' + (T3S.n === 5 ? '<div class="acopts" style="justify-content:center"><button type="button" id="t3Full" aria-pressed="' + !!T3S.full + '">Cancha completa</button></div><div class="acopts" id="t3FlRow" style="justify-content:center"></div>' : '') + '<div class="acopts" style="align-items:center"><b class="acn" style="margin:0">Defensa:</b><span id="t3DefSw" style="display:contents"></span></div><div class="acopts" style="align-items:center"><b class="acn" style="margin:0">Tiene el balón:</b><span id="t3Ball" style="display:contents"></span></div>' +
       '<div class="acopts" style="align-items:center"><b class="acn" style="margin:0">Quién ayuda:</b><span id="t3Def" style="display:contents"></span></div>' +
-      '<div class="acopts" id="t3Verb"></div><div class="acopts" id="t3Tgt"></div><div id="t3Msg" class="acn" style="color:#c0392b"></div>' +
+      '<div class="acopts" id="t3Tools" style="justify-content:center"></div><div class="acopts" id="t3Verb"></div><div class="acopts" id="t3Tgt"></div><div id="t3Msg" class="acn" style="color:#c0392b"></div>' +
       '<label class="acn"><b>Jugada</b></label><div id="t3Now" class="acn" style="text-align:left"></div><ol id="t3L" style="list-style:none;margin:0 0 8px;padding:0;text-align:left;width:100%"></ol>' +
       '<div id="t3Save" class="acopts" style="align-items:center"></div>' +
       '<div class="acopts"><button type="button" id="t3Ex" aria-pressed="false">' + T3S.n + 'x' + T3S.n + ' explicación</button></div><p class="acn" id="t3Help" hidden></p><div class="acn"><b>Coloca a los jugadores</b></div>' +
@@ -4063,12 +4081,12 @@
     function m2Start() { try { return A.t3Replay({ n: 2, att: T3S.att, holder: 0, steps: [m2Hand()] }).att[0].slice(); } catch (er) { return T3S.att[0].slice(); } }
     function t3Lineas() { var l = []; (T3S.chain || []).concat(T3S.steps).forEach(function (x, i) { if (x.path) l.push(i); }); return l; }
     T3S.recorrido = function (pts, pl) {
-      if (T3S.full && T3S.fl && pl !== undefined && pl >= 0 && pts && pts.length >= 2) {          // flecha de un jugador (cancha completa)
+      if (T3S.full && T3S.fl && !(T3S.pend && (T3S.pend.k === 'go' || T3S.pend.k === 'cut')) && pl !== undefined && pl >= 0 && pts && pts.length >= 2) {          // flecha de un jugador (cancha completa)
         if (T3S.playing) { elM.style.color = '#c0392b'; elM.textContent = 'Espera a que termine la acción.'; return; }
         T3S.arrows = (T3S.arrows || []).filter(function (a) { return a.p !== pl; }); T3S.arrows.push({ p: pl, path: pts.map(function (q) { return q.slice(); }) }); T3S.selArr = null;
         elM.style.color = '#1b6f8a'; elM.textContent = 'Flecha del jugador ' + (pl + 1) + '. Pulsa «Jugar flechas» para que se muevan.'; render(); return;
       }
-      var pn = T3S.pend; if (T3S.playing || !pn || !(pn.k === 'go' || pn.k === 'cut') || pn.p === null || !pts || pts.length < 2) return;
+      var pn = T3S.pend; if (pn && T3S.full && pn.p === null && (pn.k === 'go' || pn.k === 'cut') && pl !== undefined && pl >= 0) pn.p = pl; if (T3S.playing || !pn || !(pn.k === 'go' || pn.k === 'cut') || pn.p === null || !pts || pts.length < 2) return;
       if (pn.forM2 && T3S.m2) { T3S.m2.path = pts.map(function (q) { return q.slice(); }); T3S.pend = null; elM.style.color = '#1b6f8a'; elM.textContent = 'Línea dibujada. Ahora coloca a los jugadores y pulsa Empezar.'; render(); return; }
       T3S.selPath = null; add({ k: pn.k, p: pn.p, to: 'la flecha dibujada', xy: pts[pts.length - 1].slice(), path: pts, direct: true });
     };
@@ -4091,7 +4109,7 @@
     function t3Load(pl) {
       if (T3S.playing) { elM.style.color = '#c0392b'; elM.textContent = 'Espera a que termine la acción.'; return; }
       var s0 = JSON.parse(pl.init);
-      T3S.att = s0.att; T3S.def = s0.def; T3S.holder = s0.holder; T3S.dman = s0.dman; T3S.help = s0.help || t3F(false); T3S.fresh = s0.fresh !== false; T3S.full = !!s0.full; A.t3Full(T3S.full);
+      T3S.att = s0.att; T3S.def = s0.def; T3S.holder = s0.holder; T3S.dman = s0.dman; T3S.help = s0.help || t3F(false); T3S.fresh = s0.fresh !== false; T3S.full = !!s0.full; if (s0.dir !== undefined) { T3S.dir = s0.dir; T3S.dirManual = true; } A.t3Full(T3S.full);
       if (pl.marks && pl.marks.length) { T3S.marks = pl.marks.map(function (x) { return x.slice(); }); A.t3Marks(T3S.marks); }
       T3S.init = pl.init; T3S.chain = []; T3S.steps = JSON.parse(JSON.stringify(pl.chain)); T3S.name = pl.name; T3S.lastScr = null; T3S.pend = null; T3S.par = false;
       render(); document.getElementById('t3Go').onclick();
@@ -4227,7 +4245,14 @@
       if (T3S.sel.t === 'a') { T3S.att[T3S.sel.i] = P[nm].slice(); } else { T3S.def[T3S.sel.i] = P[nm].slice(); T3S.dman[T3S.sel.i] = true; }
       t3AutoDef(); elM.textContent = ''; render();
     }
+    function t3AutoDir() {          // cancha completa: sentido del ataque (si saca de fondo, ataca la canasta contraria)
+      if (!T3S.full) return null;
+      if (!T3S.dirManual && !(T3S.chain && T3S.chain.length) && T3S.att && T3S.holder >= 0 && T3S.att[T3S.holder]) { var hz = T3S.att[T3S.holder][1]; T3S.dir = hz < 4.5 ? 1 : hz > 14.1 ? 0 : (hz > 9.3 ? 1 : 0); }
+      if (T3S.dir === undefined || T3S.dir === null) T3S.dir = 1;
+      return T3S.dir;
+    }
     function render() {
+      A.t3Dir(t3AutoDir());
       var elSw = document.getElementById('t3DefSw'); elSw.innerHTML = '';
       [['Con defensores', false], ['Sin defensores', true]].forEach(function (o) { mk(elSw, o[0], function () { if (T3S.playing) { elM.textContent = 'Espera a que termine la acción.'; return; } T3S.noDef = o[1]; if (o[1]) { T3S.help = t3F(false); if (T3S.sel.t === 'd') T3S.sel = { t: 'a', i: 0 }; } t3Push(); render(); }, !!T3S.noDef === o[1]); });
       elC.innerHTML = ''; AN.forEach(function (n, i) { mk(elC, 'Jugador ' + n, function () { T3S.sel = { t: 'a', i: i }; T3S.pend = null; T3S.tapSel = null; render(); }, T3S.sel.t === 'a' && T3S.sel.i === i); });
@@ -4235,10 +4260,14 @@
       document.getElementById('t3Help').textContent = T3S.steps.length ? 'Elige la acción y su destino: se realiza al momento.' : 'Arrastra a cada jugador con el dedo (atacante y defensor van juntos) y suéltalo: se coloca en la posición más cercana. También puedes elegir un jugador y tocar una posición. Después elige acciones: cada una se realiza al momento. El jugador 1 siempre empieza con el balón en la posición 1. Los defensores marcan al atacante de su número; en ayuda forman un triángulo con el balón.';
       elH.textContent = T3S.addPos ? 'Toca la pista donde quieras crear una posición nueva' : askPos ? '¿A qué posición ' + (pn.k === 'cut' ? 'corta' : 'va') + ' el jugador ' + (pn.p + 1) + '? Márcala en la pista, o dibuja la flecha con el dedo.' : 'Posiciones · toca para colocar al ' + selName();
       var lnI = t3Lineas(); if (T3S.selPath != null && T3S.selPath >= lnI.length) T3S.selPath = null;
-      var arrM = !!(T3S.full && T3S.fl); T3S.orbit = arrM || !askPos; A.t3Orbit(T3S.orbit); A.exDraw(!T3S.playing && !!askPos && !arrM); A.exDrawP(arrM && !T3S.playing);
+      var arrM = !!(T3S.full && T3S.fl); T3S.orbit = !!T3S.mover; A.t3Orbit(T3S.orbit); A.exDraw(!T3S.playing && !!askPos && !T3S.mover); A.exDrawP((arrM || !!(T3S.full && pn && (pn.k === 'go' || pn.k === 'cut'))) && !T3S.playing && !T3S.mover);
+      var elTl = document.getElementById('t3Tools'); if (elTl) { elTl.innerHTML = '';
+        mk(elTl, 'Mover campo', function () { T3S.mover = !T3S.mover; elM.style.color = '#1b6f8a'; elM.textContent = T3S.mover ? 'Mueve el campo con el dedo. Pulsa otra vez «Mover campo» para seguir con la jugada.' : ''; render(); }, !!T3S.mover);
+        var bv = mk(elTl, '▶ Ver lo hecho', t3Ver); if (T3S.playing || !(T3S.init && (T3S.chain || []).length)) { bv.style.opacity = '.45'; } else { bv.className = 'primary'; } }
       var bUn = document.getElementById('t3Undo'); if (bUn) bUn.disabled = !(((T3S.chain || []).length) || (T3S.full && T3S.fl && (T3S.arrows || []).length));
       var flR = document.getElementById('t3FlRow'); if (flR) { flR.innerHTML = ''; if (T3S.full) {
         mk(flR, 'Colocar', function () { T3S.fl = false; T3S.selArr = null; render(); }, !T3S.fl); mk(flR, 'Flechas', function () { T3S.fl = true; T3S.pend = null; render(); }, !!T3S.fl);
+        mk(flR, '⇄ Cambiar sentido del ataque', function () { if (T3S.playing) { elM.style.color = '#c0392b'; elM.textContent = 'Espera a que termine la acción.'; return; } if (T3S.chain && T3S.chain.length) { elM.style.color = '#c0392b'; elM.textContent = 'Para cambiar el sentido, pulsa Inicio.'; return; } T3S.dirManual = true; T3S.dir = T3S.dir ? 0 : 1; elM.style.color = '#1b6f8a'; elM.textContent = 'Ahora se ataca a la otra canasta (flechas azules en el suelo).'; render(); });
         if (T3S.fl && (T3S.arrows || []).length) { mk(flR, 'Jugar flechas', t3JugarFlechas, undefined, 'primary'); mk(flR, T3S.selArr != null ? 'Borrar esta flecha' : 'Borrar flechas', function () { if (T3S.selArr != null) T3S.arrows.splice(T3S.selArr, 1); else T3S.arrows = []; T3S.selArr = null; render(); }); }
       } }
       var drawnP = lnI.map(function (k) { return (T3S.chain || []).concat(T3S.steps)[k].path; }), autoP = [], colsP = drawnP.map(function () { return ''; });
@@ -4377,12 +4406,19 @@
       if (!T3S.playing) t3Push();
     }
     document.getElementById('t3Go').onclick = function () {
+      T3S.verView = false;
       if (!T3S.steps.length) { elM.textContent = 'Añade al menos un paso.'; return; }
       if (t3Check(T3S.steps).some(function (x) { return x; })) { elM.textContent = 'Hay pasos en rojo: corrígelos antes de jugar.'; return; }
       if (!T3S.init) { T3S.init = t3Snap(); T3S.chain = []; }
       T3S.chain = (T3S.chain || []).concat(T3S.steps.map(function (x) { return JSON.parse(JSON.stringify(x)); }));
       T3S.lastRun = T3S.steps.slice(); T3S.playing = true; T3S.pend = null; elM.textContent = ''; A.speed(slow ? 0.45 : 1); t3Push(); A.t3Go(T3S.steps.slice(), T3S.lastScr);
     };
+    function t3Ver() {              // vista previa de lo hecho hasta ahora, sin terminar la jugada
+      if (T3S.playing || !T3S.init || !(T3S.chain || []).length) { elM.style.color = '#c0392b'; elM.textContent = T3S.playing ? 'Espera a que termine la acción.' : 'Todavía no hay pasos. Haz primero una acción (por ejemplo «Bloquea a un compañero…») y luego pulsa aquí para verla.'; return; }
+      var s0 = JSON.parse(T3S.init); T3S.mover = false; T3S.pend = null; T3S.verView = true;
+      A.t3Set({ att: s0.att, def: s0.def, holder: s0.holder, scr: null }); T3S.playing = true; T3S.lastRun = null; T3S.running = []; elM.style.color = '#1b6f8a'; elM.textContent = 'Viendo lo hecho…'; A.speed(slow ? 0.45 : 1); render();
+      A.t3Go(JSON.parse(JSON.stringify(T3S.chain)), null);
+    }
     document.getElementById('t3Reset').onclick = function () {
       if (T3S.init) { var s = JSON.parse(T3S.init); T3S.att = s.att; T3S.def = s.def; T3S.holder = s.holder; T3S.dman = s.dman; T3S.help = s.help || t3F(false); T3S.fresh = s.fresh !== false; } else t3Defaults();
       T3S.lastScr = null; T3S.playing = false; T3S.queue = []; T3S.steps = []; T3S.pend = null; T3S.par = false; T3S.bal = null; T3S.addPos = false; T3S.init = null; T3S.chain = []; T3S.selPath = null; elM.textContent = ''; render(); A.t3View();
@@ -4443,7 +4479,7 @@
       if (!okq) { T3S.queue = []; var m2 = document.getElementById('t3Msg'); if (m2) { m2.style.color = '#c0392b'; m2.textContent = 'Una acción en cola ya no se podía hacer y se ha cancelado.'; } if (T3S.render) T3S.render(); return; }
       T3S.steps = nxq; if (T3S.render) T3S.render(); setTimeout(function () { var g = document.getElementById('t3Go'); if (T3S.active && g && g.onclick && T3S.steps.length) g.onclick(); }, 350); return;
     }
-    if (T3S.render) { T3S.render(); var mm = document.getElementById('t3Msg'); if (mm) { mm.style.color = '#1b6f8a'; mm.textContent = (lr && lr.k === 'hand') ? 'Entrega hecha. Primero elige qué hace el jugador ' + (lr.to + 1) + ' (el que ha recibido el balón).' : 'Jugada terminada. Las posiciones y el balón se quedan como han acabado: elige la siguiente acción.'; } }
+    if (T3S.render) { T3S.render(); var mm = document.getElementById('t3Msg'); if (mm) { mm.style.color = '#1b6f8a'; mm.textContent = T3S.verView ? 'Ya lo has visto. Sigue por donde ibas: elige la siguiente acción.' : (lr && lr.k === 'hand') ? 'Entrega hecha. Primero elige qué hace el jugador ' + (lr.to + 1) + ' (el que ha recibido el balón).' : 'Jugada terminada. Las posiciones y el balón se quedan como han acabado: elige la siguiente acción.'; } }
   });
   window.addEventListener('bbt3drop', function (e) {
     if (!T3S.active || !T3S.render) return; var d = e.detail || {}, P = A.t3Pos(), mm = document.getElementById('t3Msg');
