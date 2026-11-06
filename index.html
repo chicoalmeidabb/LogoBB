@@ -283,7 +283,7 @@
 
   var U = 0.01, CX = 299, CY = 252;            // píxeles de la imagen original -> unidades 3D
   var CYAN = 0x1eabd1, NAVY = 0x153448, JERSEY = 0x62b6c4;
-  var APP_V = 'v5.24',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
+  var APP_V = 'v5.25',  CAMH = 2.9, R3 = 6.75, KC = 1.4, H = 5.0, RIM = 0.8, TUBE = 0.05, RB = 0.32, ZB = -0.95, G = 18, NET_H = 1.05, HOLD_Y = 3.0, JUMP = 1.0;
 
   var stage = document.getElementById('stage');
   document.getElementById('ver').textContent = APP_V;
@@ -2321,6 +2321,70 @@
     loading.hidden = true;
   }
 
+  /* letras de «¡NUEVO RÉCORD!»: aparecen desordenadas por la pantalla y después se ordenan */
+  function recordBanner() {
+    var old = document.getElementById('recBan'); if (old) old.remove();
+    var w = document.createElement('div'); w.id = 'recBan'; w.setAttribute('aria-live', 'polite'); w.setAttribute('aria-label', '¡Nuevo récord!');
+    w.style.cssText = 'position:fixed;left:0;right:0;top:14%;text-align:center;z-index:99998;pointer-events:none;font:900 clamp(30px,8.2vw,92px)/1.05 Montserrat,Arial,sans-serif;letter-spacing:.02em;color:#ffd23f;-webkit-text-stroke:2px #0b2a3b;text-shadow:0 4px 0 #0b2a3b,0 0 26px rgba(255,210,63,.75);transition:opacity .8s';
+    var txt = '¡NUEVO RÉCORD!', cols = ['#ffd23f', '#ff6b8b', '#4cd9a6', '#6ad0f0', '#ffffff'], sp = [];
+    for (var i = 0; i < txt.length; i++) {
+      var ch = txt.charAt(i), e = document.createElement('span'); e.textContent = ch === ' ' ? '\u00a0' : ch;
+      var rx = (Math.random() - 0.5) * 80, ry = (Math.random() - 0.3) * 60, rr = (Math.random() - 0.5) * 720, sc = 0.4 + Math.random() * 1.8;
+      e.style.cssText = 'display:inline-block;opacity:0;color:' + cols[Math.floor(Math.random() * cols.length)] + ';transform:translate(' + rx + 'vw,' + ry + 'vh) rotate(' + rr + 'deg) scale(' + sc + ');transition:transform 1.3s cubic-bezier(.2,.9,.25,1.25) ' + (i * 0.06) + 's,opacity .35s,color 1.3s';
+      w.appendChild(e); sp.push(e);
+    }
+    document.body.appendChild(w);
+    requestAnimationFrame(function () { requestAnimationFrame(function () { sp.forEach(function (e) { e.style.opacity = '1'; }); }); });         // 1.º: se ven desordenadas
+    setTimeout(function () { sp.forEach(function (e, i) { e.style.transform = 'none'; e.style.color = '#ffd23f'; }); }, 1500);                // 2.º: se ordenan
+    setTimeout(function () { sp.forEach(function (e, i) { e.style.transition = 'transform .35s ease ' + (i * 0.04) + 's'; e.style.transform = 'translateY(-14px) scale(1.12)'; setTimeout(function () { e.style.transform = 'none'; }, 380 + i * 40); }); }, 3200);   // pequeña ola
+    setTimeout(function () { w.style.opacity = '0'; }, 7200);
+    setTimeout(function () { w.remove(); }, 8200);
+  }
+  /* nuevo récord: serpentinas y confeti saltan desde las gradas y caen a la pista */
+  var CF = null;
+  function confettiBurst() {
+    if (!court) return;
+    var NC = 520, NS = 70, N = NC + NS, i;
+    if (!CF) {
+      var mc = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true }), ms = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true });
+      CF = { c: new THREE.InstancedMesh(new THREE.PlaneGeometry(0.3, 0.2), mc, NC), s: new THREE.InstancedMesh(new THREE.PlaneGeometry(0.11, 1.5), ms, NS), d: new THREE.Object3D(), col: new THREE.Color(), P: [], on: false, t: 0 };
+      CF.c.frustumCulled = CF.s.frustumCulled = false; court.add(CF.c); court.add(CF.s);
+    }
+    var cols = [0xff4d6d, 0xffd166, 0x06d6a0, 0x1eabd1, 0xffffff, 0xf59e0b, 0x8e5bd0, 0x3fa34d];
+    CF.P = [];
+    for (i = 0; i < N; i++) {
+      var side = Math.random(), x, z;
+      if (side < 0.38) { x = -(12.5 + Math.random() * 6); z = -4 + Math.random() * 18; }
+      else if (side < 0.76) { x = 12.5 + Math.random() * 6; z = -4 + Math.random() * 18; }
+      else { x = (Math.random() - 0.5) * 24; z = -8 - Math.random() * 6; }
+      var tx = (Math.random() - 0.5) * 14, tz = 1 + Math.random() * 11, dx = tx - x, dz = tz - z, dl = Math.hypot(dx, dz) || 1, sp = 5 + Math.random() * 5;
+      CF.P.push({ x: x, y: 3.5 + Math.random() * 2, z: z, vx: dx / dl * sp * (0.5 + Math.random() * 0.5), vy: 7 + Math.random() * 7, vz: dz / dl * sp * (0.5 + Math.random() * 0.5), rx: Math.random() * 6, ry: Math.random() * 6, rz: Math.random() * 6, wx: (Math.random() - 0.5) * 12, wy: (Math.random() - 0.5) * 12, wz: (Math.random() - 0.5) * 12, t0: Math.random() * 1.6, ph: Math.random() * 6, sk: i >= NC, land: 0, y0: 0 });
+      var cl = cols[Math.floor(Math.random() * cols.length)];
+      (i >= NC ? CF.s : CF.c).setColorAt(i >= NC ? i - NC : i, CF.col.setHex(cl));
+    }
+    if (CF.c.instanceColor) CF.c.instanceColor.needsUpdate = true; if (CF.s.instanceColor) CF.s.instanceColor.needsUpdate = true;
+    CF.on = true; CF.t = 0; CF.c.visible = CF.s.visible = true; standCheer = 7; recordBanner();
+  }
+  function confettiUpdate(dt) {
+    if (!CF || !CF.on) return;
+    CF.t += dt; var d = CF.d, i, p, any = false, NC = 520, end = 11;
+    for (i = 0; i < CF.P.length; i++) {
+      p = CF.P[i]; var m = p.sk ? CF.s : CF.c, idx = p.sk ? i - NC : i;
+      if (CF.t < p.t0) { d.position.set(0, -50, 0); d.scale.setScalar(0.001); d.updateMatrix(); m.setMatrixAt(idx, d.matrix); continue; }
+      if (p.y > 0.03) {
+        any = true; var k = Math.pow(0.55, dt), fl = p.sk ? 0.4 : 1;
+        p.vx *= k; p.vz *= k; p.vy -= (p.sk ? 7 : 5.5) * dt; if (p.vy < -(p.sk ? 2.6 : 1.8)) p.vy = -(p.sk ? 2.6 : 1.8);   // el confeti flota al caer
+        p.x += (p.vx + Math.sin(CF.t * 3 + p.ph) * 0.9 * fl) * dt; p.z += (p.vz + Math.cos(CF.t * 2.6 + p.ph) * 0.9 * fl) * dt; p.y += p.vy * dt;
+        p.rx += p.wx * dt; p.ry += p.wy * dt; p.rz += p.wz * dt;
+        if (p.y <= 0.03) { p.y = 0.03; p.land = CF.t; p.rx = -Math.PI / 2 + (Math.random() - 0.5) * 0.3; p.ry = 0; }
+      }
+      var fade = p.land ? Math.max(0, Math.min(1, (end - (CF.t - p.land)) / 2.5)) : 1;
+      d.position.set(p.x, p.y, p.z); d.rotation.set(p.rx, p.ry, p.rz); d.scale.setScalar(Math.max(0.001, fade)); d.updateMatrix(); m.setMatrixAt(idx, d.matrix);
+      if (fade > 0.01) any = true;
+    }
+    CF.c.instanceMatrix.needsUpdate = CF.s.instanceMatrix.needsUpdate = true;
+    if (!any || CF.t > 26) { CF.on = false; CF.c.visible = CF.s.visible = false; }
+  }
   /* público: cuando hay canasta, aplauden (saltan y dan palmas con los brazos arriba) */
   function standUpdate(dt, time, force) {
     if (!standM) return;
@@ -2855,7 +2919,13 @@
     if (contGroup) contGroup.visible = false; document.getElementById('cScore').hidden = true; document.getElementById('hScore').hidden = false;
     if (ballMesh && ballMat0) ballMesh.material = ballMat0;
     menuT.textContent = 'Concurso terminado'; menuB.innerHTML = '';
+    var recNuevo = false;
+    if (!cont.champ) {          // concurso libre: récord personal en este dispositivo (según la duración elegida)
+      try { var kRec = 'bbContBest' + cont.secs, prevR = parseInt(localStorage.getItem(kRec), 10) || 0; if (score > prevR) { localStorage.setItem(kRec, String(score)); if (prevR > 0) recNuevo = true; } } catch (er) {}
+      if (recNuevo) confettiBurst();
+    }
     var p = document.createElement('p'); p.className = 'acn'; p.style.cssText = 'margin:0;text-align:center;font-size:1.2em'; p.textContent = score + ' puntos · ' + made + ' aciertos de ' + cont.shot + ' tiros'; menuB.appendChild(p);
+    if (recNuevo) { var rcN = document.createElement('p'); rcN.style.cssText = 'margin:2px 0;text-align:center;font-weight:800;color:#1b8a3a'; rcN.textContent = '🎉 ¡Nuevo récord!'; menuB.appendChild(rcN); }
     if (cont.champ) {
       var rk = document.createElement('div'); rk.className = 'acn'; rk.style.cssText = 'margin:4px 0;text-align:center'; menuB.appendChild(rk);
       var usado = Math.max(0, Math.round(cont.secs - cont.left));
@@ -2868,7 +2938,7 @@
       } else {
         rk.textContent = 'Enviando al ranking…';
         window.bbPost({ action: 'rankingGuardar', dev: window.bbDev(), nombre: who.name, num: who.num, equipo: who.team, puntos: score, aciertos: made, tiempo: usado })
-          .then(function (r) { if (r && r.ok) rkPintar(rk, r, true); else { rk.textContent = (r && r.error) || 'No se ha podido guardar en el ranking.'; } })
+          .then(function (r) { if (r && r.ok) { rkPintar(rk, r, true); if (r.mejora) confettiBurst(); } else { rk.textContent = (r && r.error) || 'No se ha podido guardar en el ranking.'; } })
           .catch(function () { rk.textContent = 'Sin conexión: este resultado no ha entrado en el ranking.'; });
       }
     }
@@ -2976,7 +3046,17 @@
     var box = document.createElement('div'); box.style.cssText = 'max-height:56vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;text-align:left;padding-right:4px';
     SEC.forEach(function (x) { var d = document.createElement('div'); d.innerHTML = '<b>' + x[0] + '</b><br><span style="opacity:.9">' + x[1] + '</span>'; d.style.cssText = 'font-size:.9rem;line-height:1.4'; box.appendChild(d); });
     menuB.appendChild(box);
-    menuBtn('‹ Menú', showMenu).style.background = 'transparent';
+    var mb = menuBtn('‹ Menú', showMenu); mb.style.background = 'transparent';
+    var taps = 0, tapT = 0;           // menú escondido: toca 3 veces seguidas el título «Ayuda» para ver «Probar celebración»
+    menuT.onclick = function () {
+      if (menuT.textContent !== 'Ayuda' || document.getElementById('hidCel')) return;
+      var now = Date.now(); taps = now - tapT < 1500 ? taps + 1 : 1; tapT = now;
+      if (taps >= 3) {
+        var cb = document.createElement('button'); cb.type = 'button'; cb.id = 'hidCel'; cb.textContent = '🎉 Probar celebración de récord'; cb.className = mb.className; cb.style.cssText = mb.style.cssText; cb.style.background = '';
+        cb.onclick = function () { menuEl.hidden = true; oYaw = 0; oPitch = 0.55; oZoom = 0.55; confettiBurst(); setTimeout(function () { showHelp(); }, 13000); };
+        menuB.insertBefore(cb, mb);
+      }
+    };
     menuEl.hidden = false;
   }
   function showShot() {
@@ -3271,7 +3351,7 @@
     }
     contTick(dt);
     updateDefender(dt, time, showP ? seg01(u, 0.8, 1) : 0, live);
-    netSway *= Math.pow(0.35, dt); standUpdate(dt, time);
+    netSway *= Math.pow(0.35, dt); standUpdate(dt, time); confettiUpdate(dt);
     if (court.visible) updateNet(time);
 
     /* cámara */
