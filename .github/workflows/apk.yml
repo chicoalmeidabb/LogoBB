@@ -1,0 +1,68 @@
+name: Crear APK del juego
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Número de versión del APK (por ejemplo 1)'
+        default: '1'
+      url:
+        description: 'Dirección de la página que abre la app'
+        default: 'https://chicoalmeidabb.github.io/LogoBB/'
+      nombre:
+        description: 'Nombre que sale bajo el icono'
+        default: 'Baloncesto Badajoz 3D'
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+      - name: Crear el proyecto de Android
+        env:
+          APP_URL: ${{ inputs.url }}
+          APP_NAME: ${{ inputs.nombre }}
+          APP_VER: ${{ inputs.version }}
+        run: |
+          mkdir -p app/src/main/java/club/bb/app app/src/main/res/mipmap-xxxhdpi app/src/main/res/values
+          cat > settings.gradle <<'EOT'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositories { google(); mavenCentral() } }
+          rootProject.name = "BBApp"
+          include ':app'
+          EOT
+          cat > build.gradle <<'EOT'
+          plugins { id 'com.android.application' version '8.5.2' apply false }
+          EOT
+          cat > app/build.gradle <<EOT
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'club.bb.app'
+              compileSdk 34
+              defaultConfig {
+                  applicationId 'club.bb.app'
+                  minSdk 24
+                  targetSdk 34
+                  versionCode ${APP_VER}
+                  versionName '${APP_VER}'
+              }
+              buildTypes { release { minifyEnabled false } }
+              compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+          }
+          EOT
+          sed -i 's/^          //' settings.gradle build.gradle app/build.gradle
+          cat > app/src/main/AndroidManifest.xml <<'EOT'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:allowBackup="true" android:usesCleartextTraffic="false" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+                  <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|scr
