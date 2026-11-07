@@ -5,7 +5,7 @@ on:
     inputs:
       version:
         description: 'Número de versión del APK (por ejemplo 1)'
-        default: '1'
+        default: '2'
       url:
         description: 'Dirección de la página que abre la app'
         default: 'https://chicoalmeidabb.github.io/LogoBB/'
@@ -64,7 +64,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
-              <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:allowBackup="true" android:usesCleartextTraffic="false" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+              <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:allowBackup="true" android:usesCleartextTraffic="false" android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar.Fullscreen">
                   <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout" android:windowSoftInputMode="adjustResize">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -102,7 +102,9 @@ jobs:
                   s.setDatabaseEnabled(true);
                   s.setMediaPlaybackRequiresUserGesture(false);
                   s.setAllowFileAccess(false);
+                  if (android.os.Build.VERSION.SDK_INT >= 29) { s.setForceDark(WebSettings.FORCE_DARK_OFF); }
                   web.setWebViewClient(new WebViewClient() {
+                      @Override public void onPageFinished(WebView v, String u) { v.evaluateJavascript("(function(){var s=document.createElement('style');s.textContent='#bInst{display:none!important}';document.head.appendChild(s);})()", null); }
                       @Override public boolean shouldOverrideUrlLoading(WebView v, android.webkit.WebResourceRequest r) {
                           String u = r.getUrl().toString();
                           if (u.startsWith("http://") || u.startsWith("https://")) { return false; }
