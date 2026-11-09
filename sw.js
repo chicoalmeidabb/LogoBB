@@ -1,5 +1,5 @@
-const CACHE = 'badajoz3d-v101';
-const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+const CACHE = 'badajoz3d-v102';
+const FILES = ['./', './index.html', './ajedrez.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
 });
@@ -10,8 +10,10 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).then(r => { const c = r.clone(); caches.open(CACHE).then(x => x.put('./index.html', c)); return r; })
-      .catch(() => caches.match('./index.html')));
+    // cada página se guarda con su propia dirección (el juego y el ajedrez no se mezclan)
+    const key = /ajedrez\.html$/.test(new URL(req.url).pathname) ? './ajedrez.html' : './index.html';
+    e.respondWith(fetch(req).then(r => { const c = r.clone(); caches.open(CACHE).then(x => x.put(key, c)); return r; })
+      .catch(() => caches.match(key)));
     return;
   }
   e.respondWith(caches.match(req).then(r => r || fetch(req)));
