@@ -68,7 +68,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0b1626;font-family:sy
   <button id="rep">🎬 Ver partida</button>
   <button id="new" class="alt">🆕 Nueva partida</button>
 </div>
-<div id="promo" class="modal"><div class="card"><h2>Coronación</h2><p>¿En qué pieza se convierte el peón?</p><div id="promoRow" class="row"></div></div></div>
+<div id="promo" class="modal"><div class="card"><h2>Coronación</h2><p>La ficha se convierte en dama.</p><div id="promoRow" class="row"></div></div></div>
 <div id="ask" class="modal"><div class="card"><h2 id="askH">¿Partida nueva?</h2><p id="askP">Se borra la partida actual.</p><div class="row"><button id="askNo">No</button><button id="askYes" class="alt">Sí, empezar</button></div></div></div>
 <div id="end" class="modal"><div class="card"><h2 id="endTitle"></h2><p id="endText"></p><div class="row" style="display:block"><div class="col"><button id="endRep">🎬 Ver partida</button><button id="endClose">Ver el tablero</button><button id="endNew" class="alt">Nueva partida</button><p id="endWait" class="sub" style="display:none;text-align:center">Espera a que quien creó la sala empiece otra partida</p></div></div></div></div>
 <div id="hm" class="modal"><div class="card"><h2 id="hmT"></h2><div id="hmB" class="col"></div></div></div>
@@ -141,29 +141,32 @@ var Chess = (function () {
     function add(m) { var k = m.from + '-' + m.to; if (seen[k]) return; seen[k] = 1; var p = b[m.from]; m.piece = p; m.promo = (p.toLowerCase() === 'p' && (m.to >> 3) === lastRow(me)) ? 'q' : ''; steps.push(m); }
     if (seqs.length) {
       var mx = 0; seqs.forEach(function (q) { if (q.length > mx) mx = q.length; });
-      seqs.forEach(function (q) { if (q.length === mx) add(q[0]); });
+      var soplo = -1; seqs.forEach(function (q) { if (q.length === mx) { if (soplo < 0) soplo = q[0].from; add(q[0]); } });
+      if (st.must < 0) quiet(function (m) { m.soplo = soplo; add(m); });   // se puede mover otra ficha, pero se pierde (sopla) la que podía comer
       return { steps: steps, caps: true };
     }
-    from.forEach(function (sq) {
+    quiet(add);
+    return { steps: steps, caps: false };
+    function quiet(add) { from.forEach(function (sq) {
       var p = b[sq], king = p.toLowerCase() === 'q', r = sq >> 3, c = sq & 7, fwd = me === 'w' ? 1 : -1;
       for (var d = 0; d < 4; d++) {
         var dr = DIRS[d][0], dc = DIRS[d][1]; if (!king && dr !== fwd) continue;
         var rr = r + dr, cc = c + dc;
         while (inb(rr, cc) && b[rr * 8 + cc] === '') { add({ from: sq, to: rr * 8 + cc, cap: null, capSq: -1 }); if (!king) break; rr += dr; cc += dc; }
       }
-    });
-    return { steps: steps, caps: false };
+    }); }
   }
 
   function make(st, m) {
     if (m.pass) { var pb = st.b.slice(); st.dead.forEach(function (d) { pb[d] = ''; }); var pn = { b: pb, turn: st.turn === 'w' ? 'b' : 'w', half: st.half, dead: [], must: -1, keys: st.keys }; pn.keys = st.keys.concat([posKey(pn)]); return pn; }
     var b = st.b.slice(), p = b[m.from]; b[m.from] = ''; b[m.to] = p;
+    var sq0 = m.soplo >= 0 ? (m.soplo === m.from ? m.to : m.soplo) : -1; if (sq0 >= 0) b[sq0] = '';
     var dead = st.dead.slice(); if (m.capSq >= 0) dead.push(m.capSq);
     var ns = { b: b, turn: st.turn, half: st.half, dead: dead, must: -1, keys: st.keys };
     if (m.capSq >= 0 && turnInfo({ b: b, turn: st.turn, dead: dead, must: m.to }).caps) { ns.must = m.to; return ns; }
     dead.forEach(function (s) { b[s] = ''; });
-    if (m.promo) b[m.to] = isW(p) ? 'Q' : 'q';
-    ns.half = (dead.length || p.toLowerCase() === 'p') ? 0 : st.half + 1;
+    if (m.promo && sq0 !== m.to) b[m.to] = isW(p) ? 'Q' : 'q';
+    ns.half = (dead.length || sq0 >= 0 || p.toLowerCase() === 'p') ? 0 : st.half + 1;
     ns.dead = []; ns.turn = st.turn === 'w' ? 'b' : 'w'; ns.keys = st.keys.concat([posKey(ns)]);
     return ns;
   }
@@ -186,6 +189,7 @@ var Chess = (function () {
     var out = [];
     (function go(s, steps) {
       status(s).moves.forEach(function (m) {
+        if (m.soplo >= 0) return;
         var ns = make(s, m), ss = steps.concat([m]);
         if (ns.turn === s.turn) go(ns, ss); else out.push({ steps: ss, st: ns });
       });
@@ -815,14 +819,18 @@ if (typeof module !== 'undefined') module.exports = Chess;
     m.rotation.x = -Math.PI / 2; m.position.set(p.x, BOARD_Y + (kind === 'dot' || kind === 'cap' ? 0.03 : 0.018), p.z); overlay.add(m);
   }
   var HELP = false; try { HELP = localStorage.getItem('bb_damas_ayuda') === '1'; } catch (e) { }
+  function ayuda() { return !!(ai.on && ai.level === 1); }   // solo el nivel Fácil lleva ayudas
   function refreshMarks() {
     while (overlay.children.length) overlay.remove(overlay.children[0]);
     pulse = [];
     if (lastMove) { addMark(lastMove.from, 'last'); addMark(lastMove.to, 'last'); }
-    if (selected < 0 && st && !st.over && !rep.on && st.moves.length && st.moves[0].cap) { var seenF = {}; st.moves.forEach(function (m) { if (!seenF[m.from]) { seenF[m.from] = 1; addMark(m.from, 'cap'); } }); }
+    if (ayuda() && selected < 0 && st && !st.over && !rep.on && st.moves.length && st.moves[0].cap) { var seenF = {}; st.moves.forEach(function (m) { if (m.cap && !seenF[m.from]) { seenF[m.from] = 1; addMark(m.from, 'cap'); } }); }
     if (selected >= 0) {
       addMark(selected, 'sel');
-      if (HELP) targets.forEach(function (m) { addMark(m.to, m.cap ? 'cap' : 'dot'); });
+      if (ayuda()) targets.forEach(function (m) { addMark(m.to, m.cap ? 'cap' : 'dot'); });
+      if (ayuda() && targets.length && targets[0].cap) {                       // comida múltiple: se marcan todas las casillas del recorrido
+        try { Chess.turns(state).forEach(function (t) { if (t.steps[0].from === selected) t.steps.slice(1).forEach(function (m) { addMark(m.to, 'cap'); }); }); } catch (e) { }
+      }
     }
   }
 
@@ -845,6 +853,7 @@ if (typeof module !== 'undefined') module.exports = Chess;
     var m = h.move, nm = NAMES[m.piece.toLowerCase()];
     var s = nm + ' ' + Chess.sqName(m.from) + (m.cap ? ' × ' : ' → ') + Chess.sqName(m.to);
     if (m.promo) s += ' · ¡Dama!';
+    if (m.soplo >= 0) s += ' · ¡Soplo!';
     return s;
   }
   var OVER = {
@@ -862,8 +871,9 @@ if (typeof module !== 'undefined') module.exports = Chess;
     else if (resign) { msg = '🏳 ' + resign.why + ' Gana el ' + TEAM[resign.winner].name + ' 🏆'; cls = 'bad'; }
     else if (st.over === 'bloqueo') { msg = '¡Gana el ' + TEAM[st.winner].name + '! 🏆'; cls = 'bad'; }
     else if (st.over) { msg = OVER[st.over]; cls = 'warn'; }
-    else if (state.must >= 0 && !(ai.on && state.turn === ai.color)) { msg = 'Sigue comiendo con la misma ficha'; cls = 'warn'; }
-    else if (st.moves.length && st.moves[0].cap && !(ai.on && state.turn === ai.color)) { msg = 'Hay que comer: elige una ficha con aro rojo'; cls = 'warn'; }
+    else if (ayuda() && state.must >= 0 && !(ai.on && state.turn === ai.color)) { msg = 'Sigue comiendo con la misma ficha'; cls = 'warn'; }
+    else if (ayuda() && st.moves.length && st.moves[0].cap && !(ai.on && state.turn === ai.color)) { var multi = false; try { multi = Chess.turns(state).some(function (t) { return t.steps.length > 1; }); } catch (e) { }
+      msg = multi ? 'Hay que comer varias fichas seguidas: toca la ficha con aro rojo y sigue las casillas rojas' : 'Hay que comer. Si mueves otra ficha, pierdes la que podía comer'; cls = 'warn'; }
     else if (hist.length) { msg = 'Último: ' + describe(hist[hist.length - 1]); }
     else msg = 'Toca una ficha para empezar';
     $('msg').textContent = msg; $('msg').className = cls;
@@ -900,6 +910,20 @@ if (typeof module !== 'undefined') module.exports = Chess;
     lastMove = hist.length ? hist[hist.length - 1].move : null;
     rebuildFigs(); st = Chess.status(state); refreshMarks(); updateHUD();
   }
+  /* la ficha soplada se convierte en un soplido: nube de humo, gira y se la lleva el viento */
+  function soplido(vf, done) {
+    var puffs = [], i, x0 = vf.position.x, y0 = vf.position.y, z0 = vf.position.z;
+    for (i = 0; i < 9; i++) {
+      var pm = new THREE.Mesh(new THREE.SphereGeometry(0.16 + Math.random() * 0.12, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false }));
+      pm.position.set(x0 + (Math.random() - 0.5) * 0.5, y0 + 0.2 + Math.random() * 0.7, z0 + (Math.random() - 0.5) * 0.5); pm.userData = { vx: 0.5 + Math.random() * 0.9, vy: 0.3 + Math.random() * 0.5, g: 0.8 + Math.random() * 1.6 };
+      figGroup.add(pm); puffs.push(pm);
+    }
+    tween(1100, function (k) {
+      vf.rotation.y = k * 14; var sc = Math.max(0.02, 1 - k); vf.scale.set(sc, sc, sc);
+      vf.position.set(x0 + k * 1.6, y0 + k * 0.9, z0 - k * 0.5);
+      puffs.forEach(function (p) { var u = p.userData, gs = 0.6 + k * u.g * 2; p.scale.set(gs, gs, gs); p.position.x += u.vx * 0.016; p.position.y += u.vy * 0.012; p.material.opacity = 0.8 * (1 - k); });
+    }, function () { figGroup.remove(vf); puffs.forEach(function (p) { figGroup.remove(p); p.geometry.dispose(); p.material.dispose(); }); done(); });
+  }
   function play(m) {
     var prev = state, me = prev.turn;
     if (m.pass) { state = Chess.make(prev, m); hist.push({ prev: prev, move: m, capP: null }); selected = -1; targets = []; st = Chess.status(state); refreshMarks(); updateHUD(); aiTurn(); return; }
@@ -911,7 +935,12 @@ if (typeof module !== 'undefined') module.exports = Chess;
     function oneDone() { if (--pend === 0) { busy = false; updateHUD(); aiTurn(); } }
     if (cap) { figs[capSq] = null; var ccol = me === 'w' ? 'b' : 'w'; benchFigs[ccol].push(cap); shootToHoop(cap, capSq, ccol, mdur * 0.8, benchFigs[ccol].length - 1, oneDone); }
     figs[m.to] = mover;
+    if (m.soplo >= 0) toast('🌬 ¡Soplo! Podías comer y no lo hiciste: pierdes la ficha que no comió', 4000, true);
     travel(mover, m.from, m.to, function () {
+      if (m.soplo >= 0) {
+        var vs = m.soplo === m.from ? m.to : m.soplo, vf = figs[vs];
+        if (vf) { figs[vs] = null; soplido(vf, oneDone); return; }
+      }
       if (m.promo) {
         figGroup.remove(mover);
         var nf = makeFigure(m.promo, me); place(nf, m.to); figGroup.add(nf); figs[m.to] = nf; pop(nf);
@@ -965,33 +994,13 @@ if (typeof module !== 'undefined') module.exports = Chess;
 
   /* ---------- por qué una jugada no se puede ---------- */
   function whyIllegal(from, to) {
-    var b = state.b, p = b[from], t = p.toLowerCase(), me = Chess.colorOf(p), q = b[to];
-    var r0 = from >> 3, c0 = from & 7, r1 = to >> 3, c1 = to & 7, dr = r1 - r0, dc = c1 - c0, adr = Math.abs(dr), adc = Math.abs(dc);
-    function between() { var sr = Math.sign(dr), sc = Math.sign(dc), r = r0 + sr, c = c0 + sc; while (r !== r1 || c !== c1) { if (b[r * 8 + c]) return true; r += sr; c += sc; } return false; }
-    var line = (dr === 0 || dc === 0), diag = adr === adc;
-    if (q && Chess.colorOf(q) === me) return 'No puedes comer una pieza tuya';
-    if (t === 'n') { if (!((adr === 1 && adc === 2) || (adr === 2 && adc === 1))) return 'El caballo se mueve en L: 2 casillas y 1 al lado'; }
-    else if (t === 'b') { if (!diag) return 'El alfil solo se mueve en diagonal'; if (between()) return 'Hay una pieza en medio'; }
-    else if (t === 'r') { if (!line) return 'La torre solo se mueve en línea recta'; if (between()) return 'Hay una pieza en medio'; }
-    else if (t === 'q') { if (!line && !diag) return 'La dama se mueve en línea recta o en diagonal'; if (between()) return 'Hay una pieza en medio'; }
-    else if (t === 'k') {
-      if (adr === 0 && adc === 2) return 'Ese enroque no se puede ahora (rey o torre ya movidos, piezas en medio, o el rey pasa por jaque)';
-      if (adr > 1 || adc > 1) return 'El rey solo se mueve una casilla';
-    }
-    else if (t === 'p') {
-      var dir = me === 'w' ? 1 : -1, home = me === 'w' ? 1 : 6;
-      if (dr * dir <= 0) return dr === 0 ? 'El peón no se mueve de lado' : 'El peón no puede ir hacia atrás';
-      if (dc === 0) {
-        if (q) return 'El peón no puede comer hacia delante';
-        if (adr === 2) { if (r0 !== home) return 'El peón solo avanza 2 casillas la primera vez'; if (b[(r0 + dir) * 8 + c0]) return 'Hay una pieza en medio'; }
-        else if (adr > 2) return 'El peón avanza 1 casilla (2 la primera vez)';
-      } else if (adc === 1 && adr === 1) { if (!q) return 'El peón solo va en diagonal para comer una pieza'; }
-      else return 'El peón no se mueve así';
-    }
-    // la forma del movimiento vale, pero deja al rey en peligro
-    if (st && st.check) return 'Tu rey está en jaque: tienes que salvarlo';
-    if (t === 'k') return 'El rey no puede ir a una casilla atacada';
-    return 'Con esa jugada tu rey quedaría en jaque';
+    var bd = state.b, p = bd[from], king = p.toLowerCase() === 'q', me = Chess.colorOf(p);
+    var r0 = from >> 3, r1 = to >> 3, c0 = from & 7, c1 = to & 7, dr = r1 - r0, dc = c1 - c0, adr = Math.abs(dr), adc = Math.abs(dc), dir = me === 'w' ? 1 : -1;
+    if ((r1 + c1) % 2) return 'Solo se juega en las casillas blancas';
+    if (bd[to]) return 'Esa casilla está ocupada';
+    if (adr !== adc) return 'Las fichas solo van en diagonal';
+    if (!king) { if (dr * dir <= 0) return 'Las fichas no van hacia atrás'; if (adr > 1) return 'Las fichas avanzan una casilla (dos si comen)'; }
+    return 'Esa jugada no se puede';
   }
   function tapSquare(sq) {
     if (rep.on || busy || (st && st.over) || resign || aiThink || (ai.on && state.turn === ai.color)) return;
@@ -1003,8 +1012,7 @@ if (typeof module !== 'undefined') module.exports = Chess;
     }
     if (mine) {
       selected = sq; targets = st.moves.filter(function (m) { return m.from === sq; });
-      if (!targets.length && st.moves.length && st.moves[0].cap) toast('Hay que comer: elige una ficha con aro rojo');
-      else if (!targets.length) toast('Esa ficha no puede moverse');
+      if (!targets.length) toast('Esa ficha no puede moverse');
       var f = figs[sq]; if (f) tween(260, function (k) { var s = 1 + Math.sin(k * Math.PI) * 0.1; f.scale.set(s, s, s); }, function () { f.scale.set(1, 1, 1); });
     } else if (selected >= 0 && sq !== selected) {
       toast(whyIllegal(selected, sq), 3200);
@@ -1117,7 +1125,7 @@ if (typeof module !== 'undefined') module.exports = Chess;
   var BB_GS = 'https://script.google.com/macros/s/AKfycbwD3ErVsz7tg2oEy5-IsHen_tT5K-ayr3jUX_jEcwR0zQ-T0ucWKf1XtZtFUpsU0j0ElQ/exec';
   var BACK = /damas\.html$/.test(location.pathname) ? './' + location.search : null;
   var toastT = 0;
-  function toast(t, ms) { var e = $('toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(function () { e.style.display = 'none'; }, ms || 1800); }
+  function toast(t, ms, up) { var e = $('toast'); e.style.top = up ? '78px' : 'auto'; e.style.bottom = up ? 'auto' : '92px'; e.textContent = t; e.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(function () { e.style.display = 'none'; }, ms || 1800); }
   function whoGet() {
     try { var w = JSON.parse(localStorage.getItem('bb_player') || 'null') || {}; return { name: String(w.name || '').trim(), num: String(w.num || '').replace(/\D/g, '').slice(0, 2), sex: w.sex === 'f' ? 'f' : 'm', team: String(w.team || '') }; }
     catch (e) { return { name: '', num: '', sex: 'm', team: '' }; }
@@ -1154,7 +1162,6 @@ if (typeof module !== 'undefined') module.exports = Chess;
   function hmBtn(txt, fn, cls) { var b = document.createElement('button'); b.type = 'button'; b.textContent = txt; if (cls) b.className = cls; if (fn) b.onclick = fn; else b.disabled = true; $('hmB').appendChild(b); return b; }
   function hmTxt(txt, cls) { var p = document.createElement('p'); p.className = cls || 'sub'; p.textContent = txt; $('hmB').appendChild(p); return p; }
   function ayudaBtn(again) {
-    hmBtn('💡 Ayuda de jugadas: ' + (HELP ? 'encendida' : 'apagada'), function () { HELP = !HELP; try { localStorage.setItem('bb_damas_ayuda', HELP ? '1' : '0'); } catch (e) { } refreshMarks(); again(); }, 'ghost');
   }
   function showHome() {
     if (rep.on) return;
