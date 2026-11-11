@@ -1,4 +1,4 @@
-const CACHE = 'badajoz3d-v107';
+const CACHE = 'badajoz3d-v108';
 const FILES = ['./', './index.html', './ajedrez.html', './damas.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
