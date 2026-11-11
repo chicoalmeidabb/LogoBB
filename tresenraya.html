@@ -724,7 +724,7 @@ var Chess = (function () {
   var pulse = [];
   function addMark(sq, kind) {
     var p = sqPos(sq), m;
-    if (kind === 'dot') { m = new THREE.Mesh(new THREE.CircleGeometry(0.17, 20), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 })); }
+    if (kind === 'dot') { m = new THREE.Mesh(new THREE.CircleGeometry(0.17, 24), new THREE.MeshBasicMaterial({ color: 0xffc400, transparent: true, opacity: 1 })); var m0 = new THREE.Mesh(new THREE.CircleGeometry(0.235, 24), new THREE.MeshBasicMaterial({ color: 0x14202c, transparent: true, opacity: 0.9 })); m0.rotation.x = -Math.PI / 2; m0.scale.set(2.2, 2.2, 1); m0.position.set(p.x, BOARD_Y + 0.024, p.z); overlay.add(m0); }
     else if (kind === 'cap') { m = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.46, 24), new THREE.MeshBasicMaterial({ color: 0xff3d3d, transparent: true, opacity: 0.95 })); }
     else if (kind === 'sel') { m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xffeb3b, transparent: true, opacity: 0.5 })); }
     else if (kind === 'last') { m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x80deea, transparent: true, opacity: 0.4 })); }
@@ -937,6 +937,8 @@ var Chess = (function () {
     var r = canvas.getBoundingClientRect();
     v2.set((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height * 2 - 1));
     ray.setFromCamera(v2, camera);
+    var fl = ray.intersectObjects(squareMeshes, false), fsq = fl.length ? fl[0].object.userData.sq : -1;
+    if (selected >= 0 && fsq >= 0 && targets.indexOf(fsq) >= 0) return fsq;      // si toca una casilla a la que puede ir, esa tiene prioridad
     var hits = ray.intersectObjects(figGroup.children.map(function (f) { return f.userData.hit; }).filter(Boolean), false);
     if (hits.length) {
       var top = hits[0].object.parent, p = top.position;
