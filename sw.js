@@ -1,5 +1,5 @@
-const CACHE = 'badajoz3d-v109';
-const FILES = ['./', './index.html', './ajedrez.html', './damas.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+const CACHE = 'badajoz3d-v110';
+const FILES = ['./', './index.html', './ajedrez.html', './damas.html', './tresenraya.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
 });
@@ -11,7 +11,7 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   if (req.mode === 'navigate') {
     // cada página se guarda con su propia dirección (el juego, el ajedrez y las damas no se mezclan)
-    const pn = new URL(req.url).pathname, key = /ajedrez\.html$/.test(pn) ? './ajedrez.html' : /damas\.html$/.test(pn) ? './damas.html' : './index.html';
+    const pn = new URL(req.url).pathname, key = /ajedrez\.html$/.test(pn) ? './ajedrez.html' : /damas\.html$/.test(pn) ? './damas.html' : /tresenraya\.html$/.test(pn) ? './tresenraya.html' : './index.html';
     e.respondWith(fetch(req).then(r => { const c = r.clone(); caches.open(CACHE).then(x => x.put(key, c)); return r; })
       .catch(() => caches.match(key)));
     return;
