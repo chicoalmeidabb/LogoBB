@@ -24,6 +24,19 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);fo
 header h1{font-family:var(--f-display);font-weight:800;font-size:clamp(24px,4vw,34px);line-height:1.1;margin:0 0 6px;text-wrap:balance}
 header p{margin:0;color:var(--mut);max-width:62ch}
 html.emb header h1{display:none}
+html.emb body{padding:6px 8px}
+html.emb header{display:none}
+html.emb .wrap{max-width:none;gap:6px}
+html.emb .layout{grid-template-columns:minmax(0,2.7fr) minmax(0,1fr);gap:10px}
+html.emb .stage{height:calc(100vh - 120px);min-height:300px;aspect-ratio:auto;max-height:none}
+html.emb .item>button{padding:7px 10px}
+html.emb .item h2{font-size:13px}
+html.emb .tag{font-size:9.5px}
+html.emb .body{font-size:12px;line-height:1.4;padding:2px 10px 10px;gap:8px}
+html.emb .dose{font-size:12px}
+html.emb .btn,html.emb .chip{font-size:12.5px;padding:5px 11px;min-height:34px}
+html.emb .warn,html.emb footer{display:none}
+@media(max-width:860px){html.emb .layout{grid-template-columns:minmax(0,1fr)}html.emb .stage{height:calc(100vh - 250px)}}
 .layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px;align-items:start}
 @media(max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}}
 .stagebox{position:sticky;top:max(12px,env(safe-area-inset-top,0px));display:grid;gap:10px}
@@ -1608,7 +1621,7 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change',themeChange
 new MutationObserver(themeChanged).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 if(matchMedia('(prefers-reduced-motion: reduce)').matches)playing=false;
 resize();
-{const asp=stage.clientWidth/Math.max(1,stage.clientHeight),d=asp<1.1?6.4:5.4;camera.position.set(d,1.5,.45);controls.target.set(0,1.15,.45);controls.update()}
+{const asp=stage.clientWidth/Math.max(1,stage.clientHeight),d=asp<1.1?5.8:4.8;camera.position.set(d,1.5,.45);controls.target.set(0,1.15,.45);controls.update()}
 
 /* ---------------- Enviar por WhatsApp ---------------- */
 const CLUB='Baloncesto Badajoz';
